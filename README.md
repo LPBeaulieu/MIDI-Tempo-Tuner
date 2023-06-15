@@ -4,3 +4,4 @@ This application lets you adjust the tempo of a midi file automatically by provi
 I will be posting my code regularly (almost in real time) in case there is anyone posing as me and wishing to take credit for my work!!!
 
 Log 0 June 15 2023 18h57: I'll also keep a diary of my moods here during my creative process!
+Log 1 June 15 2023 19h19: I am wondering whether I should add the functionality of merging MIDIs before performing tempo adjustment relative to another MIDI file. However, what if the two MIDI files I wish to merge together aren't of the same tempo? Problems, problems...
