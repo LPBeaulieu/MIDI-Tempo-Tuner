@@ -22,7 +22,7 @@ with open("midi_tracks.txt", "a+") as f:
     for i in range(3):
         track = MidiTrack()
         mid.tracks.append(track)
-        mid.tracks[i].append(MetaMessage('track_name', name='track number ' + str(i), time=0))
+        mid.tracks[i].append(MetaMessage('sequence_number', number=i, time=0))
         mid.tracks[i].append(MetaMessage('time_signature', numerator=4, denominator=4, clocks_per_click=18, notated_32nd_notes_per_beat=notes_per_beat, time=0))
         mid.tracks[i].append(MetaMessage('set_tempo', tempo=tempo_value, time=0))
         notes =[40,42,44,45,47,49,51,52]
@@ -68,12 +68,14 @@ with open("midi_tracks.txt", "a+") as f:
         tempo_value += 500000
         track = MidiTrack()
         mid.tracks.append(track)
+        mid.tracks[i].append(MetaMessage('sequence_number', number=i, time=0))
         mid.tracks[i].append(MetaMessage('time_signature', numerator=4, denominator=4, clocks_per_click=18, notated_32nd_notes_per_beat=notes_per_beat, time=0))
         mid.tracks[i].append(MetaMessage('set_tempo', tempo=tempo_value, time=0))
         notes =[40,42,44,45,47,49,51,52]
         for note_value in notes:
             mid.tracks[i].append(Message('note_on', note=note_value, velocity=90, time=0))
             mid.tracks[i].append(Message('note_off', note=note_value, velocity=90, time=500))
+        mid.tracks[i].append(MetaMessage('end_of_track'))
     f.write(str(mid))
     f.write("\n\n")
 
