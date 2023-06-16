@@ -50,23 +50,12 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
                             tempo_hits = [int(tempo)/32 for tempo in tempo_hits]
                             different_track_tempos.append([k, l, tempo_hits[0]])
                     if tempo_hits and len(different_track_tempos) > 1 and different_track_tempos[-2][2] != different_track_tempos[-1][2]:
-                        if beat_value_hits and len(different_track_beat_values) > 1 and different_track_beat_values[-2][2] != different_track_beat_values[-1][2]:
-                            tick_adjustment_ratio = (different_track_tempos[-2][2] * different_track_beat_values[-2][2] /
-                            different_track_tempos[-1][2] * different_track_beat_values[-1][2])
-                        else:
-                            tick_adjustment_ratio = different_track_tempos[-2][2]/different_track_tempos[-1][2]
-                            print("tick_adjustment_ratio: ", tick_adjustment_ratio)
+                        tick_adjustment_ratio = 1- different_track_tempos[-2][2]/different_track_tempos[-1][2]
+                        print("tick_adjustment_ratio: ", tick_adjustment_ratio)
 
-                    elif beat_value_hits and len(different_track_beat_values) > 1 and different_track_beat_values[-2][2] != different_track_beat_values[-1][2]:
-                        if tempo_hits and len(different_track_tempos) > 1 and different_track_tempos[-2][2] != different_track_tempos[-1][2]:
-                            tick_adjustment_ratio = (different_track_tempos[-2][2] * different_track_beat_values[-2][2] /
-                            different_track_tempos[-1][2] * different_track_beat_values[-1][2])
-                        else:
-                            tick_adjustment_ratio = (different_track_tempos[-1][2] * different_track_beat_values[-2][2] /
-                            different_track_tempos[-1][2] * different_track_beat_values[-1][2])
                     if tick_adjustment_ratio and r"note_" in message_string:
                         time = int(re.findall(r"time=(\d+)", message_string)[0])
-                        message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(tick_adjustment_ratio*time)), message_string)
+                        message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time/tick_adjustment_ratio)), message_string)
                         note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                         message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                         print("message_string: ", message_string)
