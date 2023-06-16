@@ -32,11 +32,13 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
             different_track_beat_values = []
             different_track_tempos = []
             for k in range(len(mid.tracks)):
+                tick_adjustment_ratio = None
                 for l in range(len(mid.tracks[k])):
-                    tick_adjustment_ratio = None
                     beat_value_hits = []
                     tempo_hits = []
                     message_string = str(mid.tracks[k][l])
+                    #print("message_string: ", message_string)
+                    #print(r"note_" in message_string)
                     if "notated_32nd_notes_per_beat" in message_string:
                         beat_value_hits = re.findall(r"notated_32nd_notes_per_beat=(\d+),", message_string)
                         if beat_value_hits != []:
@@ -53,6 +55,7 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
                             different_track_tempos[-1][2] * different_track_beat_values[-1][2])
                         else:
                             tick_adjustment_ratio = different_track_tempos[-2][2]/different_track_tempos[-1][2]
+                            print("tick_adjustment_ratio: ", tick_adjustment_ratio)
 
                     elif beat_value_hits and len(different_track_beat_values) > 1 and different_track_beat_values[-2][2] != different_track_beat_values[-1][2]:
                         if tempo_hits and len(different_track_tempos) > 1 and different_track_tempos[-2][2] != different_track_tempos[-1][2]:
@@ -61,10 +64,13 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
                         else:
                             tick_adjustment_ratio = (different_track_tempos[-1][2] * different_track_beat_values[-2][2] /
                             different_track_tempos[-1][2] * different_track_beat_values[-1][2])
-                    if tick_adjustment_ratio and "note_" in message_string:
+                    if tick_adjustment_ratio and r"note_" in message_string:
                         time = int(re.findall(r"time=(\d+)", message_string)[0])
-                        message_string = re.sub(r"time=(\d+)",  str(math.floor(tick_adjustment_ratio*time)), message_string)
-                        mid.tracks[k][l] = Message(message_string)
+                        message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(tick_adjustment_ratio*time)), message_string)
+                        note_on_off = re.findall(r"(note_\w+)", message_string)[0]
+                        message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
+                        print("message_string: ", message_string)
+                        mid.tracks[k][l] = eval("Message(" + message_string + ")")
             new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
             for k in range(len(midi_file_names)):
                 print("midi_file_names[k], related_midi_file_names[i][j]: ", midi_file_names[k], related_midi_file_names[i][j])
