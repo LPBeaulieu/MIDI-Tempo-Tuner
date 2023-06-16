@@ -12,6 +12,8 @@ paths_midi_files_path = os.path.join(cwd, "MIDI Files IN", "*.mid")
 paths_midi_files = glob.glob(paths_midi_files_path)
 midi_file_names = [path.replace("\\", "/").split("/")[-1] for path in paths_midi_files]
 
+print("midi_file_names: ", midi_file_names)
+
 #A "MIDI Files OUT" folder is created to contain the tempo adjusted
 #and/or merged MIDI files.
 if not os.path.exists(os.path.join(cwd, "MIDI Files OUT")):
@@ -26,7 +28,7 @@ tempo = None
 def apply_same_tempo(related_midi_file_names, paths_midi_files, midi_file_names):
     for i in range(len(related_midi_file_names)):
         for j in range(len(related_midi_file_names[i])):
-            mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i]))
+            mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
             different_track_beat_values = []
             different_track_tempos = []
             for k in range(len(mid.tracks)):
@@ -63,13 +65,15 @@ def apply_same_tempo(related_midi_file_names, paths_midi_files, midi_file_names)
                         time = int(re.findall(r"time=(\d+)", message_string)[0])
                         message_string = re.sub(r"time=(\d+)",  str(math.floor(tick_adjustment_ratio*time)), message_string)
                         mid.tracks[k][l] = Message(message_string)
-            new_file_name = related_file_names[i][j][:-4] + " (one tempo).mid"
-            related_file_names[i][j] = new_file_name
+            new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
             for k in range(len(midi_file_names)):
-                if midi_file_names[k] == related_file_names[i][j]:
+                if midi_file_names[k] == related_midi_file_names[i][j]:
                     paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
                     mid.save(paths_midi_files[k])
-    return related_file_names, midi_file_names, paths_midi_files
+                    with open("midi_tracks (after changes).txt", "a+") as f:
+                        f.write(st(mid))
+            related_midi_file_names[i][j] = new_file_name
+    return related_midi_file_names, midi_file_names, paths_midi_files
 
 
 
@@ -94,8 +98,8 @@ for i in range(len(midi_file_names)):
     elif related_midi_file_names_list_comprehension not in related_midi_file_names:
         related_midi_file_names.append(related_midi_file_names_list_comprehension)
 
-if related_file_names != []:
-    related_file_names, midi_file_names, paths_midi_files = apply_same_tempo(related_file_names, midi_file_names, paths_midi_files)
+if related_midi_file_names != []:
+    related_midi_file_names, midi_file_names, paths_midi_files = apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
 
 related_midi_file_names = list(related_midi_file_names)
 print("\nrelated_midi_file_names: ", related_midi_file_names)
