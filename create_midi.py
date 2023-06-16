@@ -16,7 +16,7 @@ target_dBFS = -20
 
 with open("midi_tracks.txt", "a+") as f:
     f.write("0-test_song.mid\n\n")
-    mid = MidiFile()
+    mid = MidiFile(type=2)
     notes_per_beat = 8
     tempo_value = 500000
     for i in range(3):
@@ -61,7 +61,7 @@ with open("midi_tracks.txt", "a+") as f:
     # f.write("\n\n")
 
     f.write("\n1-test_song.mid\n\n")
-    mid = MidiFile()
+    mid = MidiFile(type=2)
     notes_per_beat = 8
     tempo_value = 0
     for i in range(3):
