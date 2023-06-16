@@ -25,7 +25,7 @@ ratio = 1.66
 tempo_substitution_done = False
 tempo = None
 
-def apply_same_tempo(related_midi_file_names, paths_midi_files, midi_file_names):
+def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files):
     for i in range(len(related_midi_file_names)):
         for j in range(len(related_midi_file_names[i])):
             mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
@@ -67,11 +67,12 @@ def apply_same_tempo(related_midi_file_names, paths_midi_files, midi_file_names)
                         mid.tracks[k][l] = Message(message_string)
             new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
             for k in range(len(midi_file_names)):
+                print("midi_file_names[k], related_midi_file_names[i][j]: ", midi_file_names[k], related_midi_file_names[i][j])
                 if midi_file_names[k] == related_midi_file_names[i][j]:
-                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
+                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files OUT", new_file_name)
                     mid.save(paths_midi_files[k])
                     with open("midi_tracks (after changes).txt", "a+") as f:
-                        f.write(st(mid))
+                        f.write(str(mid))
             related_midi_file_names[i][j] = new_file_name
     return related_midi_file_names, midi_file_names, paths_midi_files
 
