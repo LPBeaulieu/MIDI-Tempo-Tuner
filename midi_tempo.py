@@ -1,13 +1,22 @@
 import math
 import mido
-from mido import Message, MidiFile, MidiTrack
+from mido import Message, MidiFile, MidiTrack, MetaMessage
 import glob
 import os
 import re
 
 
-
 cwd = os.getcwd()
+
+
+from midi2audio import FluidSynth
+from pydub import AudioSegment
+path_sf2 = os.path.join(cwd, "*.sf2")
+sf2_file = glob.glob(path_sf2)[0]
+fs = FluidSynth(sf2_file)
+target_dBFS = -20
+
+
 paths_midi_files_path = os.path.join(cwd, "MIDI Files IN", "*.mid")
 paths_midi_files = glob.glob(paths_midi_files_path)
 midi_file_names = [path.replace("\\", "/").split("/")[-1] for path in paths_midi_files]
@@ -31,6 +40,7 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
             mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
             different_track_beat_values = []
             different_track_tempos = []
+            first_tempo_found = False
             for k in range(len(mid.tracks)):
                 tick_adjustment_ratio = None
                 for l in range(len(mid.tracks[k])):
@@ -47,8 +57,12 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
                     if "set_tempo" in message_string:
                         tempo_hits = re.findall(r"tempo=(\d+),", message_string)
                         if tempo_hits != []:
-                            tempo_hits = [int(tempo)/32 for tempo in tempo_hits]
+                            tempo_hits = [int(tempo) for tempo in tempo_hits]
                             different_track_tempos.append([k, l, tempo_hits[0]])
+                            if first_tempo_found:
+                                mid.tracks[k][l] = MetaMessage("text", text='Previous "set_tempo value: "' + str(tempo_hits[0]))
+                            else:
+                                first_tempo_found = True
                     if tempo_hits and len(different_track_tempos) > 1 and different_track_tempos[-2][2] != different_track_tempos[-1][2]:
                         tick_adjustment_ratio = 1- different_track_tempos[-2][2]/different_track_tempos[-1][2]
                         print("tick_adjustment_ratio: ", tick_adjustment_ratio)
@@ -66,6 +80,12 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
                 if midi_file_names[k] == related_midi_file_names[i][j]:
                     paths_midi_files[k] = os.path.join(cwd, "MIDI Files OUT", new_file_name)
                     mid.save(paths_midi_files[k])
+                    fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
+                    song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
+                    delta_dBFS = target_dBFS - song_audiosegment.dBFS
+                    song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+                    song_audiosegment.export(paths_midi_files[k][:-4] + '.mp3', format="mp3", bitrate="320k")
+                    os.remove(paths_midi_files[k][:-4] + '.wav')
                     with open("midi_tracks (after changes).txt", "a+") as f:
                         f.write(str(mid))
             related_midi_file_names[i][j] = new_file_name
