@@ -67,7 +67,7 @@ for i in range(len(related_file_names)):
 
         if ticks_per_beat_related_files[i][j] != starting_ticks_per_beat:
             mid.ticks_per_beat = starting_ticks_per_beat
-            ticks_per_beat_correction_ratio = ticks_per_beat_related_files[i]/starting_ticks_per_beat
+            ticks_per_beat_correction_ratio = starting_ticks_per_beat/ticks_per_beat_related_files[i]
         else:
             ticks_per_beat_correction_ratio = 1
         for k in range(len(mid.tracks)):
@@ -82,7 +82,7 @@ for i in range(len(related_file_names)):
                         tempo_hits = [int(tempo) for tempo in tempo_hits]
                         different_track_tempos.append([k, l, tempo_hits[0]])
                         if j == 0:
-                            tempo_reference = tempo_hits[0]                        
+                            tempo_reference = tempo_hits[0]
                         #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
                         #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
@@ -90,16 +90,16 @@ for i in range(len(related_file_names)):
                             str(tempo_hits[0])))
                         else:
                             first_tempo_found = True
+                #duration(ms) = ticks / tpb * temp
                 if (tempo_reference and tempo_hits and len(different_track_tempos) > 1 and
                 tempo_reference != different_track_tempos[-1][2]):
-                    tick_adjustment_ratio = ((1- tempo_reference/different_track_tempos[-1][2])*
-                    ticks_per_beat_correction_ratio)
+                    tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
                 else:
                     tick_adjustment_ratio = ticks_per_beat_correction_ratio
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
-                    message_string = (re.sub(r"(time=\d+)",  "time=" + str(math.floor(time/tick_adjustment_ratio)),
+                    message_string = (re.sub(r"(time=\d+)",  "time=" + str(math.floor(time*tick_adjustment_ratio)),
                     message_string))
                     note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                     message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
@@ -124,51 +124,10 @@ for i in range(len(related_file_names)):
                         f.write(str(mid))
         related_midi_file_names[i][j] = new_file_name
 
-        #The midi file name is appended to the "file_names" list
-        #The '.replace("\\", "/")' method is used to ensure Windows
-        #compatibility.
-        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_file_names[i][j]))
-        print("\ni, file_name: ", i, file_name)
-        starting_ticks_per_beat = None
-        if related_file_names[i][j][0] == "0":
-            ticks_per_beat_reference = mid.ticks_per_beat
-            starting_ticks_per_beat = ticks_per_beat_reference
-            print("\nticks_per_beat_reference: ", ticks_per_beat_reference)
-        else:
-            ticks_per_beat_related_files.append(mid.ticks_per_beat)
-            starting_ticks_per_beat = ticks_per_beat_related_files[0]
-
-        if starting_ticks_per_beat:
-            for i in range(len(related_midi_file_names)):
-                for j in range(len(related_midi_file_names[i])):
-                     if ticks_per_beat_related_files[i][j] != starting_ticks_per_beat:
-                        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
-                        mid.ticks_per_beat = starting_ticks_per_beat
-                        ticks_per_beat_correction_ratio = ticks_per_beat_related_files[i]/starting_ticks_per_beat
-
-                        for k in range(len(mid.tracks)):
-                            for l in range(len(mid.tracks[k])):
-                                message_string = str(mid.tracks[k][l])
 
 
 
 
-# for i in range(len(related_midi_file_names)):
-#     ticks_per_beat_reference = None
-#     ticks_per_beat = dict()
-#     for j in range(len(related_midi_file_names[i])):
-#         print("\nrelated_midi_file_names[i][j][0]: ", related_midi_file_names[i][j][0])
-#         ticks_per_beat[related_midi_file_names[i][j]] = mid.ticks_per_beat
-#         track_tempos = []
-#         for k in range(len(mid.tracks)):
-#             for l in range(len(mid.tracks[k])):
-#                 if "set_tempo" in str(mid.tracks[j][k]):
-#                     tempo_string = str(mid.tracks[j][k])
-#                     tempo_hits = re.findall(r"tempo=(\d+),", tempo_string)
-#                     if tempo_hits != []:
-#                         track_tempos.append(tempo_hits)
-#         print("\ntrack_tempos: ", track_tempos)
-#         print("\nticks_per_beat: ", ticks_per_beat)
 
 
 
