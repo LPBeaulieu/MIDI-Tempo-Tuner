@@ -51,23 +51,20 @@ for i in range(len(midi_file_names)):
 
 for i in range(len(related_midi_file_names)):
     different_track_tempos = []
-    ticks_per_beat_related_files = []
+    ticks_per_beat_current_file = None
     ticks_per_beat_reference = None
     tempo_reference = None
-    for j in range(len(related_midi_file_names[j])):
+    for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
         midi_file_altered = False
-        if related_midi_file_names[i][j][0] == "0":
+        if j == 0:
             ticks_per_beat_reference = mid.ticks_per_beat
-            starting_ticks_per_beat = ticks_per_beat_reference
             print("\nticks_per_beat_reference: ", ticks_per_beat_reference)
         else:
-            ticks_per_beat_related_files.append(mid.ticks_per_beat)
-            starting_ticks_per_beat = ticks_per_beat_related_files[0]
-
-        if ticks_per_beat_related_files[i][j] != starting_ticks_per_beat:
-            mid.ticks_per_beat = starting_ticks_per_beat
-            ticks_per_beat_correction_ratio = starting_ticks_per_beat/ticks_per_beat_related_files[i]
+            ticks_per_beat_current_file = mid.ticks_per_beat
+        if j > 0 and ticks_per_beat_current_file != ticks_per_beat_reference:
+            mid.ticks_per_beat = ticks_per_beat_reference
+            ticks_per_beat_correction_ratio = ticks_per_beat_reference/ticks_per_beat_current_file
         else:
             ticks_per_beat_correction_ratio = 1
         for k in range(len(mid.tracks)):
@@ -91,19 +88,31 @@ for i in range(len(related_midi_file_names)):
                         else:
                             first_tempo_found = True
                 #duration(ms) = ticks / tpb * temp
-                if (tempo_reference and tempo_hits and len(different_track_tempos) > 1 and
+                if (tempo_reference and len(different_track_tempos) > 1 and
                 tempo_reference != different_track_tempos[-1][2]):
-                    tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
+                    if len(different_track_tempos) > 2:
+                        print("\n\ndifferent_track_tempos[-1][2]/different_track_tempos[-2][2]: ", different_track_tempos[-1][2]/different_track_tempos[-2][2])
+                        print("different_track_tempos[-1][2]/tempo_reference: ", different_track_tempos[-1][2]/tempo_reference)
+                        print("different_track_tempos[-1][2]: ", different_track_tempos[-1][2])
+                        print("different_track_tempos[-2][2]: ", different_track_tempos[-2][2])
+                        print("ticks_per_beat_correction_ratio: ", ticks_per_beat_correction_ratio)
+
+                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
+                        print("tick_adjustment_ratio: ", tick_adjustment_ratio)
+                        print("")
+                    else:
+                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
                 else:
                     tick_adjustment_ratio = ticks_per_beat_correction_ratio
 
                 if r"note_" in message_string:
+                    print("message_string: ", message_string)
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
-                    message_string = (re.sub(r"(time=\d+)",  "time=" + str(math.floor(time*tick_adjustment_ratio)),
-                    message_string))
+                    message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time*tick_adjustment_ratio)), message_string)
                     note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                     message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                     print("message_string: ", message_string)
+                    print("")
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     midi_file_altered = True
         if midi_file_altered:
