@@ -21,6 +21,9 @@ paths_midi_files_path = os.path.join(cwd, "MIDI Files IN", "*.mid")
 paths_midi_files = glob.glob(paths_midi_files_path)
 midi_file_names = [path.replace("\\", "/").split("/")[-1] for path in paths_midi_files]
 
+if midi_file_names = []:
+    sys.exit('\nPlease place at least one MIDI (".mid") file within the "MIDI Files IN" folder.')
+
 print("midi_file_names: ", midi_file_names)
 
 #A "MIDI Files OUT" folder is created to contain the tempo adjusted
@@ -78,7 +81,7 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
             for k in range(len(midi_file_names)):
                 print("midi_file_names[k], related_midi_file_names[i][j]: ", midi_file_names[k], related_midi_file_names[i][j])
                 if midi_file_names[k] == related_midi_file_names[i][j]:
-                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files OUT", new_file_name)
+                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
                     mid.save(paths_midi_files[k])
                     fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
                     song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
@@ -96,29 +99,53 @@ def apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
 
 print("\nmidi_file_names: ", midi_file_names)
 related_midi_file_names = []
+ticks_per_beat_related_files = []
+file_name = ""
 for i in range(len(midi_file_names)):
     #The midi file name is appended to the "file_names" list
     #The '.replace("\\", "/")' method is used to ensure Windows
     #compatibility.
     file_name = re.sub(r"\A(\d+-)", "", midi_file_names[i])
+    reference_file_name = midi_file_names[i]
+    mid = MidiFile(os.path.join(cwd, "MIDI Files IN", midi_file_names[i]))
     print("\ni, file_name: ", i, file_name)
     if midi_file_names[i][0] == "0":
-        reference_file_name = midi_file_names[i]
-        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", midi_file_names[i]))
         ticks_per_beat_reference = mid.ticks_per_beat
-
         print("\nticks_per_beat_reference: ", ticks_per_beat_reference)
-    related_midi_file_names_list_comprehension = [fn for fn in midi_file_names if file_name in fn and fn[0] != "0"]
-    if not related_midi_file_names_list_comprehension:
-        related_midi_file_names.append([[file_name]])
-    elif related_midi_file_names_list_comprehension not in related_midi_file_names:
-        related_midi_file_names.append(related_midi_file_names_list_comprehension)
+    else:
+        ticks_per_beat_related_files.append(mid.ticks_per_beat)
+
+related_midi_file_names_list_comprehension = [fn for fn in midi_file_names if file_name in fn and fn[0] != "0"]
+if not related_midi_file_names_list_comprehension:
+    related_midi_file_names.append([[file_name]])
+else:
+    related_midi_file_names.append(related_midi_file_names_list_comprehension)
 
 if related_midi_file_names != []:
     related_midi_file_names, midi_file_names, paths_midi_files = apply_same_tempo(related_midi_file_names, midi_file_names, paths_midi_files)
 
-related_midi_file_names = list(related_midi_file_names)
 print("\nrelated_midi_file_names: ", related_midi_file_names)
+
+if midi_file_names[i][0] == "0":
+    starting_ticks_per_beat = ticks_per_beat_reference
+elif len(midi_file_names) > 1:
+    starting_ticks_per_beat = ticks_per_beat_related_files[0]
+else:
+    starting_ticks_per_beat = None
+
+if starting_ticks_per_beat:
+    for i in range(len(related_midi_file_names)):
+        for j in range(len(related_midi_file_names[i])):
+             if ticks_per_beat_related_files[i][j] != starting_ticks_per_beat:
+                mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
+                mid.ticks_per_beat = starting_ticks_per_beat
+                ticks_per_beat_correction_ratio = ticks_per_beat_related_files[i]/starting_ticks_per_beat
+                for k in range(len(mid.tracks)):
+                    for l in range(len(mid.tracks[k])):
+                        message_string = str(mid.tracks[k][l])
+                        
+
+
 
 # for i in range(len(related_midi_file_names)):
 #     ticks_per_beat_reference = None
