@@ -50,14 +50,12 @@ for i in range(len(midi_file_names)):
         related_midi_file_names.append([[file_name]])
 
 for i in range(len(related_file_names)):
+    different_track_tempos = []
     ticks_per_beat_related_files = []
     ticks_per_beat_reference = None
     tempo_reference = None
     for j in range(len(related_file_names[j])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
-        different_track_beat_values = []
-        different_track_tempos = []
-        first_tempo_found = False
         midi_file_altered = False
         if related_file_names[i][j][0] == "0":
             ticks_per_beat_reference = mid.ticks_per_beat
@@ -73,6 +71,7 @@ for i in range(len(related_file_names)):
         else:
             ticks_per_beat_correction_ratio = 1
         for k in range(len(mid.tracks)):
+            first_tempo_found = False
             tick_adjustment_ratio = None
             for l in range(len(mid.tracks[k])):
                 tempo_hits = []
@@ -82,19 +81,26 @@ for i in range(len(related_file_names)):
                     if tempo_hits != []:
                         tempo_hits = [int(tempo) for tempo in tempo_hits]
                         different_track_tempos.append([k, l, tempo_hits[0]])
-                        if related_file_names[i][j][0] == "0":
-                            tempo_reference = tempo_hits[0]
+                        if j == 0:
+                            tempo_reference = tempo_hits[0]                        
+                        #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
+                        #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
-                            mid.tracks[k][l] = MetaMessage("text", text='Previous "set_tempo value: "' + str(tempo_hits[0]))
+                            mid.tracks[k][l] = (MetaMessage("text", text='Previous "set_tempo value: "' +
+                            str(tempo_hits[0])))
                         else:
                             first_tempo_found = True
-                if tempo_hits and len(different_track_tempos) > 1 and different_track_tempos[-2][2] != different_track_tempos[-1][2]:
-                    tick_adjustment_ratio = 1- different_track_tempos[-2][2]/different_track_tempos[-1][2]
-                    print("tick_adjustment_ratio: ", tick_adjustment_ratio)
+                if (tempo_reference and tempo_hits and len(different_track_tempos) > 1 and
+                tempo_reference != different_track_tempos[-1][2]):
+                    tick_adjustment_ratio = ((1- tempo_reference/different_track_tempos[-1][2])*
+                    ticks_per_beat_correction_ratio)
+                else:
+                    tick_adjustment_ratio = ticks_per_beat_correction_ratio
 
-                if tick_adjustment_ratio and r"note_" in message_string:
+                if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
-                    message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time/tick_adjustment_ratio)), message_string)
+                    message_string = (re.sub(r"(time=\d+)",  "time=" + str(math.floor(time/tick_adjustment_ratio)),
+                    message_string))
                     note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                     message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                     print("message_string: ", message_string)
