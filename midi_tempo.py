@@ -21,7 +21,7 @@ paths_midi_files_path = os.path.join(cwd, "MIDI Files IN", "*.mid")
 paths_midi_files = glob.glob(paths_midi_files_path)
 midi_file_names = [path.replace("\\", "/").split("/")[-1] for path in paths_midi_files]
 
-if midi_file_names = []:
+if midi_file_names == []:
     sys.exit('\nPlease place at least one MIDI (".mid") file within the "MIDI Files IN" folder.')
 
 print("midi_file_names: ", midi_file_names)
@@ -49,15 +49,15 @@ for i in range(len(midi_file_names)):
     else:
         related_midi_file_names.append([[file_name]])
 
-for i in range(len(related_file_names)):
+for i in range(len(related_midi_file_names)):
     different_track_tempos = []
     ticks_per_beat_related_files = []
     ticks_per_beat_reference = None
     tempo_reference = None
-    for j in range(len(related_file_names[j])):
+    for j in range(len(related_midi_file_names[j])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
         midi_file_altered = False
-        if related_file_names[i][j][0] == "0":
+        if related_midi_file_names[i][j][0] == "0":
             ticks_per_beat_reference = mid.ticks_per_beat
             starting_ticks_per_beat = ticks_per_beat_reference
             print("\nticks_per_beat_reference: ", ticks_per_beat_reference)
