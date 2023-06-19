@@ -108,11 +108,19 @@ for i in range(len(related_midi_file_names)):
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     midi_file_altered = True
 
+
         if merge_midi == True:
+            def get_ticks(mid):
+                cumulative_ticks = [0]
+                for k in range(len(mid.tracks)):
+                    for msg in mid.tracks[k]:
+                        cumulative_ticks[k] += msg.time
+                    cumulative_ticks.append(0)
+                return max(cumulative_ticks)
+
             if j == 0:
+                cumulative_ticks = get_ticks(mid)
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
-                cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-                print("cumulative_ticks: ", cumulative_ticks)
             else:
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
@@ -128,8 +136,7 @@ for i in range(len(related_midi_file_names)):
                                 mid.tracks[k][l] = eval("mido." + message_string)
                             break
 
-                cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-                print("cumulative_ticks: ", cumulative_ticks)
+                cumulative_ticks += get_ticks(mid)
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
 
         elif midi_file_altered:
@@ -148,7 +155,7 @@ for i in range(len(related_midi_file_names)):
                     with open("midi_tracks (after changes).txt", "a+") as f:
                         f.write(str(mid))
                     break
-        related_midi_file_names[i][j] = new_file_name
+            related_midi_file_names[i][j] = new_file_name
 
     if merge_midi == True:
         path_merged_midi = os.path.join(cwd, "MIDI Files IN", file_name[:-4] + " (merged).mid")
