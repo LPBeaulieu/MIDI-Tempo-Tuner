@@ -10,6 +10,7 @@ import os
 import re
 from midi2audio import FluidSynth
 from pydub import AudioSegment
+import sys
 
 
 
@@ -24,7 +25,32 @@ fs = FluidSynth(sf2_file)
 #The code will then perform average amplitude normalization according to the difference
 #between the target dBFS and that of the audio track being normalized. This difference
 #will then be used to apply gain correction to the audiosegment.
-target_dBFS = -20
+target_dBFS = None
+
+
+target_tempo = None
+
+if len(sys.argv) > 1:
+    #The "try/except" statement will
+    #intercept any "ValueErrors" and
+    #ask the users to correctly enter
+    #the desired values for the variables
+    #directly after the colon separating
+    #the variable name from the value.
+    try:
+        for i in range(1, len(sys.argv)):
+            if sys.argv[i][:9].strip().lower() == "normalize":
+                normalize_split = [element for element in sys.argv[i].strip().split(":") if element != ""]
+                if len(normalize_split) > 1:
+                    target_dBFS = int(normalize_split[1].strip())
+                else:
+                    target_dBFS = -20
+            elif sys.argv[i][:5].strip().lower() == "tempo":
+                tempo_split = [element for element in sys.argv[i].strip().split(":") if element != ""]
+                if len(tempo_split) > 1:
+                    target_tempo = int(tempo_split[1].strip())
+    except:
+        pass
 
 #The MIDI files within the "MIDI Files IN" folder in which you will place
 #the MIDI files to be merged and/or tempo-adjusted, are retrieved using
@@ -124,11 +150,9 @@ for i in range(len(related_midi_file_names)):
                         if (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference != different_track_tempos[-1][2]):
                             tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
-                            if k == 0:
                         elif (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference == different_track_tempos[-1][2]):
                             tick_adjustment_ratio = ticks_per_beat_correction_ratio
-                            if k == 0:
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
@@ -191,8 +215,9 @@ for i in range(len(related_midi_file_names)):
         mid_merged.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
         song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
-        delta_dBFS = target_dBFS - song_audiosegment.dBFS
-        song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+        if target_dBFS:
+            delta_dBFS = target_dBFS - song_audiosegment.dBFS
+            song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
         song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
         os.remove(path_merged_midi[:-4] + '.wav')
 
@@ -205,76 +230,111 @@ for i in range(len(related_midi_file_names)):
             MIDI_file_name = related_midi_file_names[i][0]
             if midi_file_name[0] != "0":
                 break
-    if related_midi_file_names[i][0][0] == "0":
 
-        def find_first_note_and_tempo(mid, first_note):
-            found_first_note = False
-            found_tempo = False
-            note_duration = 0
-            for j in range(len(mid.tracks)):
-                for k in range(len(mid.tracks[j])):
-                    if found_first_note and found_tempo:
-                        return note_duration, note, tempo
-                    message_string = str(mid.tracks[j][k])
-                    if found_tempo == False and "tempo=" in message_string:
-                        tempo = int(re.findall(r"tempo=(\d+)", message_string)[0])
-                        found_tempo = True
-                    elif not first_note and not found_first_note and "note_" in message_string:
-                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
-                        note = int(re.findall(r"note=(\d+)", message_string)[0])
-                    elif first_note and not found_first_note and "note_" in message_string:
-                        note = int(re.findall(r"note=(\d+)", message_string)[0])
-                        if note == found_note:
-                            note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
-                    elif (note and not found_first_note and "note_" in message_string and
-                     int(re.findall(r"note=(\d+)", message_string)[0]) == note):
-                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
-                        if "note_off" in message_string or "velocity=0" in message_string:
-                            found_first_note = True
-                    elif note:
-                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+    def find_first_note_and_tempo(mid, first_note):
+        found_first_note = False
+        found_tempo = False
+        note_duration = 0
+        note = None
+        for j in range(len(mid.tracks)):
+            for k in range(len(mid.tracks[j])):
+                if found_first_note and found_tempo:
+                    return note_duration, note, tempo
+                message_string = str(mid.tracks[j][k])
+                if not found_tempo and "tempo=" in message_string:
+                    tempo = int(re.findall(r"tempo=(\d+)", message_string)[0])
+                    found_tempo = True
+                elif not first_note and note_duration == 0 and "note_" in message_string:
+                    note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                    note = int(re.findall(r"note=(\d+)", message_string)[0])
+                elif (first_note and note_duration == 0 and "note_" in message_string and
+                first_note == int(re.findall(r"note=(\d+)", message_string)[0])):
+                    note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                    note = first_note
+                elif (note and "note_" in message_string and
+                 note == int(re.findall(r"note=(\d+)", message_string)[0]) and
+                 ("note_off" in message_string or "velocity=0" in message_string)):
+                    note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                    found_first_note = True
+                elif note:
+                    note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
 
+    def apply_tempo_correction(mid, tempo_correction_ratio):
+        for j in range(len(mid.tracks)):
+            for k in range(len(mid.tracks[j])):
+                message_string = str(mid.tracks[j][k])
+                if "set_tempo" in message_string:
+                    tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
+                    print("\n\ntempo: ", tempo)
+                    tempo = math.floor(tempo*tempo_correction_ratio)
+                    print("\n\ntempo: ", tempo)
+                    message_string = re.sub(r"(tempo=\d+)", "tempo=" +
+                    str(tempo), message_string)
+                    mid.tracks[j][k] = eval("mido." + message_string)
+                    return mid
 
+    if target_tempo:
+        if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
+            mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
+        else:
+            mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
+            note_duration, note, tempo = find_first_note_and_tempo(mid, None)
+
+        if target_tempo < 5000:
+            def find_notated_32nd_notes_per_beat(mid):
+                notated_32nd_notes_per_beat = 8
+                for j in range(len(mid.tracks)):
+                    for k in range(len(mid.tracks[j])):
+                        message_string = str(mid.tracks[j][k])
+                        if "notated_32nd_notes_per_beat=" in message_string:
+                            return int(re.findall(r"notated_32nd_notes_per_beat=(\d+),", message_string)[0])
+
+            notated_32nd_notes_per_beat = find_notated_32nd_notes_per_beat(mid, None)
+            #microseconds/quarter-note = minute/beat * (32/notated_32nd_notes_per_beat)/4 * 60 seconds/minute * 1000000 us/second
+            new_tempo = math.floor(1/tempo * (32/notated_32nd_notes_per_beat)/4 * 60000000)
+
+        mid = apply_tempo_correction(mid, tempo_correction_ratio)
+        MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
+        path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
+        mid_merged.save(path_merged_midi)
+        fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
+        song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
+        if target_dBFS:
+            delta_dBFS = target_dBFS - song_audiosegment.dBFS
+            song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+        song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
+        os.remove(path_merged_midi[:-4] + '.wav')
+
+    elif related_midi_file_names[i][0][0] == "0":
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
         note_duration, note, tempo = find_first_note_and_tempo(mid, None)
 
+        print("\n\nnote_duration: ", note_duration)
+
         mid_reference = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][0]))
-        note_duration_reference, note_reference, tempo_reference = find_first_note_and_tempo(mid_reference)
+        note_duration_reference, note_reference, tempo_reference = find_first_note_and_tempo(mid_reference, note)
 
+        print("\n\nnote_duration_reference: ", note_duration_reference)
+        print("\n\nticks_per_beat_reference: ", ticks_per_beat_reference)
+        print("\n\ntempo_reference: ", tempo_reference)
 
+        note_duration_us = note_duration / ticks_per_beat_reference * tempo_reference
+        note_duration_reference_us =  note_duration_reference / ticks_per_beat_reference * tempo_reference
+        tempo_correction_ratio = note_duration_reference_us/note_duration_us
 
+        print("\n\ntempo_correction_ratio: ", tempo_correction_ratio)
 
+        if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
+            mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
 
-
-
-
-#OLD CODE
-            # print(ticks_per_beat_1, ticks_per_beat_2)
-            # print(mid.tracks)
-            # for j in range(len(mid.tracks)):
-            #     for k in range(len(mid.tracks[j])):
-            #         #if tempo_substitution_done and time_signature_substitution_done:
-            #         if tempo_substitution_done:
-            #             mid.save(midi_files[i])
-            #             return tempo, time_signature
-            #         elif "set_tempo" in str(mid.tracks[j][k]):
-            #             if i > 0 and tempo:
-            #                 print("\noriginal set_tempo: ", mid.tracks[j][k])
-            #                 mid.tracks[j][k] = eval("mido." + tempo)
-            #                 tempo_substitution_done = True
-            #             else:
-            #                 reference_tempo_string = str(mid.tracks[j][k])
-            #                 tempo_hits = re.findall(r"tempo=(\d+),", reference_tempo_string)
-            #                 print("tempo_hits: ", tempo_hits)
-            #                 if tempo_hits != []:
-            #                     reference_tempo = int(tempo_hits[0])
-            #                     tempo = re.sub(r"(tempo=\d+,)", "tempo=" + str(round(reference_tempo * ratio)) + "," , str(mid.tracks[j][k]))
-            #                     print("tempo: ", tempo)
-
-                    # elif "time_signature" in str(mid.tracks[j][k]):
-                    #     if i > 0 and time_signature:
-                    #         print("\noriginal time_signature: ", mid.tracks[j][k])
-                    #         mid.tracks[j][k] = time_signature
-                    #         time_signature_substitution_done = True
-                    #     else:
-                    #         time_signature = mid.tracks[j][k]
+        mid = apply_tempo_correction(mid, tempo_correction_ratio)
+        MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
+        path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
+        mid_merged.save(path_merged_midi)
+        fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
+        song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
+        if target_dBFS:
+            delta_dBFS = target_dBFS - song_audiosegment.dBFS
+            song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+        song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
+        os.remove(path_merged_midi[:-4] + '.wav')
