@@ -1,3 +1,7 @@
+#TODO
+#1- Fix error when there are unmatched files (raise EOFError)
+
+
 import math
 import mido
 from mido import Message, MidiFile, MidiTrack, MetaMessage, merge_tracks
@@ -50,8 +54,8 @@ for i in range(len(related_midi_file_names)):
     ticks_per_beat_current_file = None
     ticks_per_beat_reference = None
     tempo_reference = None
-    merge_midi = False
     cumulative_ticks = 0
+    merge_midi = False
     file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
@@ -59,10 +63,6 @@ for i in range(len(related_midi_file_names)):
         #     what.write("\n\ni, j, related_midi_fil_names[i][0]:\n "  + str(i) + " " +  str(j) + " " + related_midi_file_names[i][j] + "\n\n")
         #     what.write(str(mid))
         midi_file_altered = False
-        if (len(related_midi_file_names[i][j]) > 2 or len(related_midi_file_names[i][j]) > 1 and
-            related_midi_file_names[i][j][0] != "0"):
-            merge_midi = True
-            mid_merged = MidiFile(ticks_per_beat = ticks_per_beat_reference)
         if j == 0:
             ticks_per_beat_reference = mid.ticks_per_beat
         else:
@@ -71,10 +71,15 @@ for i in range(len(related_midi_file_names)):
             mid.ticks_per_beat = ticks_per_beat_reference
             ticks_per_beat_correction_ratio = ticks_per_beat_reference/ticks_per_beat_current_file
             tick_adjustment_ratio = ticks_per_beat_correction_ratio
-
         else:
             ticks_per_beat_correction_ratio = 1
             tick_adjustment_ratio = ticks_per_beat_correction_ratio
+
+        if (merge_midi == False and len(related_midi_file_names[i]) > 2 or
+        len(related_midi_file_names[i]) > 1 and related_midi_file_names[i][0][0] != "0"):
+            merge_midi = True
+            mid_merged = MidiFile(ticks_per_beat = ticks_per_beat_reference)
+
         for k in range(len(mid.tracks)):
             first_tempo_found = False
             for l in range(len(mid.tracks[k])):
@@ -169,12 +174,12 @@ for i in range(len(related_midi_file_names)):
 
             cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
             print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
-            if len(mid_merged.tracks) > 0:
-                for k in range(len(mid.tracks)):
-                    mid_merged.tracks[-1].append(mid.tracks[k])
-            else:
-                for k in range(len(mid.tracks)):
-                    mid_merged.tracks.append(mid.tracks[k])
+            print("\n\nlen(mid_merged.tracks): ", len(mid_merged.tracks))
+            for k in range(len(mid.tracks)):
+                mid_merged.tracks.append(mid.tracks[k])
+
+
+
             #mid_merged.tracks.append(merge_tracks(mid.tracks))
 
             # with open("midi_tracks (after changes, merged).txt", "a+") as f:
