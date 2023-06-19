@@ -133,7 +133,11 @@ for i in range(len(related_midi_file_names)):
         print("\n\n1-related_midi_file_names, merge_midi: ", related_midi_file_names, merge_midi)
         if (j == 0 and merge_midi == True and related_midi_file_names[i][0][0] != "0" or
         j == 1 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
-            mid_merged.tracks.append(merge_tracks(mid.tracks))
+            for k in range(len(mid.tracks)):
+                mid_merged.tracks.append(mid.tracks[k])
+            print("\n\nFIRST FILE MERGED!!1!1!")
+            print("\n\n" + str(mid_merged))
+            #mid_merged.tracks.append(merge_tracks(mid.tracks))
             cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
             # with open("midi_tracks (after changes, merged).txt", "a+") as f:
             #     f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
@@ -165,11 +169,17 @@ for i in range(len(related_midi_file_names)):
 
             cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
             print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
-            mid_merged.tracks.append(merge_tracks(mid.tracks))
+            if len(mid_merged.tracks) > 0:
+                for k in range(len(mid.tracks)):
+                    mid_merged.tracks[-1].append(mid.tracks[k])
+            else:
+                for k in range(len(mid.tracks)):
+                    mid_merged.tracks.append(mid.tracks[k])
+            #mid_merged.tracks.append(merge_tracks(mid.tracks))
 
-            with open("midi_tracks (after changes, merged).txt", "a+") as f:
-                f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
-                f.write(str(mid))
+            # with open("midi_tracks (after changes, merged).txt", "a+") as f:
+            #     f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
+            #     f.write(str(mid))
 
         # elif midi_file_altered:
         #     new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
