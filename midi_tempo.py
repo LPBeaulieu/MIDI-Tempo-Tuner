@@ -51,10 +51,13 @@ for i in range(len(related_midi_file_names)):
     ticks_per_beat_reference = None
     tempo_reference = None
     merge_midi = False
-    cumulative_time = 0
+    cumulative_ticks = 0
     file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
+        # with open("What is going on.txt", "a+") as what:
+        #     what.write("\n\ni, j, related_midi_fil_names[i][0]:\n "  + str(i) + " " +  str(j) + " " + related_midi_file_names[i][j] + "\n\n")
+        #     what.write(str(mid))
         midi_file_altered = False
         if (len(related_midi_file_names[i][j]) > 2 or len(related_midi_file_names[i][j]) > 1 and
             related_midi_file_names[i][j][0] != "0"):
@@ -67,11 +70,13 @@ for i in range(len(related_midi_file_names)):
         if j > 0 and ticks_per_beat_current_file != ticks_per_beat_reference:
             mid.ticks_per_beat = ticks_per_beat_reference
             ticks_per_beat_correction_ratio = ticks_per_beat_reference/ticks_per_beat_current_file
+            tick_adjustment_ratio = ticks_per_beat_correction_ratio
+
         else:
             ticks_per_beat_correction_ratio = 1
+            tick_adjustment_ratio = ticks_per_beat_correction_ratio
         for k in range(len(mid.tracks)):
             first_tempo_found = False
-            tick_adjustment_ratio = None
             for l in range(len(mid.tracks[k])):
                 tempo_hits = []
                 message_string = str(mid.tracks[k][l])
@@ -82,6 +87,8 @@ for i in range(len(related_midi_file_names)):
                         different_track_tempos.append([k, l, tempo_hits[0]])
                         if j == 0:
                             tempo_reference = tempo_hits[0]
+                            print("\n\ntempo_reference: ", tempo_reference)
+                            print("\n\nticks_per_beat_reference: ", ticks_per_beat_reference)
                         #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
                         #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
@@ -90,13 +97,13 @@ for i in range(len(related_midi_file_names)):
                         else:
                             first_tempo_found = True
                 #duration(ms) = ticks / tpb * temp
-                if (tempo_reference and len(different_track_tempos) > 1 and
+                if ("set_tempo" in message_string and tempo_reference and len(different_track_tempos) > 1 and
                 tempo_reference != different_track_tempos[-1][2]):
-                    if len(different_track_tempos) > 2:
-                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
-                    else:
-                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
-                else:
+                    if k == 0:
+                        print("tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
+                    tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
+                elif ("set_tempo" in message_string and tempo_reference and len(different_track_tempos) > 1 and
+                tempo_reference == different_track_tempos[-1][2]):
                     tick_adjustment_ratio = ticks_per_beat_correction_ratio
 
                 if r"note_" in message_string:
@@ -109,22 +116,27 @@ for i in range(len(related_midi_file_names)):
 
 
 
-            def get_ticks(mid):
-                cumulative_ticks = [0]
-                for k in range(len(mid.tracks)):
-                    for msg in mid.tracks[k]:
-                        cumulative_ticks[k] += msg.time
-                    cumulative_ticks.append(0)
-                    print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
-                return max(cumulative_ticks)
-            if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
-            j > 0 and merge_midi == True and related_midi_file_names[i][j][0] == "0"):
-                print("\n\n1-related_midi_file_names, merge_midi: ", related_midi_file_names, merge_midi)
-                cumulative_ticks = get_ticks(mid)
-                mid_merged.tracks.append(merge_tracks(mid.tracks))
-            elif j > 0 and merge_midi == True:
-                cumulative_ticks = get_ticks(mid)
-                print("\n\n2-j, related_midi_file_names[i][j], merge_midi: ", j, related_midi_file_names[i][j], merge_midi)
+
+        # if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
+        # j > 0 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
+
+        print("\n\n1-related_midi_file_names, merge_midi: ", related_midi_file_names, merge_midi)
+        if (j == 0 and merge_midi == True and related_midi_file_names[i][0][0] != "0" or
+        j == 1 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
+            mid_merged.tracks.append(merge_tracks(mid.tracks))
+            cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
+            with open("midi_tracks (after changes, merged).txt", "a+") as f:
+                f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
+                f.write(str(mid))
+        # elif j > 0 and merge_midi == True and related_midi_file_names[i][0][0] == "0":
+        #     mid_merged.tracks.append(merge_tracks(mid.tracks))
+        #     cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
+        #     with open("midi_tracks (after changes, merged).txt", "a+") as f:
+        #         f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
+        #         f.write(str(mid))
+        elif j > 0 and merge_midi == True:
+            print("\n\n2-j, related_midi_file_names[i][j], merge_midi: ", j, related_midi_file_names[i][j], merge_midi)
+            def adjust_starting_tick(mid, cumulative_ticks):
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
                         message_string = str(mid.tracks[k][l])
@@ -137,10 +149,17 @@ for i in range(len(related_midi_file_names)):
                                 mid.tracks[k][l] = eval("Message(" + message_string + ")")
                             elif "MetaMessage" in message_string:
                                 mid.tracks[k][l] = eval("mido." + message_string)
-                            break
+                            return mid
 
-                cumulative_ticks += get_ticks(mid)
-                mid_merged.tracks.append(merge_tracks(mid.tracks))
+            mid = adjust_starting_tick(mid, cumulative_ticks)
+
+            cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
+            print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
+            mid_merged.tracks.append(merge_tracks(mid.tracks))
+
+            with open("midi_tracks (after changes, merged).txt", "a+") as f:
+                f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
+                f.write(str(mid))
 
         # elif midi_file_altered:
         #     new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
@@ -170,8 +189,8 @@ for i in range(len(related_midi_file_names)):
         song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
         os.remove(path_merged_midi[:-4] + '.wav')
 
-        with open("midi_tracks (after changes, merged).txt", "w+") as f:
-            f.write(str(mid_merged))
+        # with open("midi_tracks (after changes, merged).txt", "w+") as f:
+        #     f.write(str(mid_merged))
 
 
 
