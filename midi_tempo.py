@@ -115,6 +115,7 @@ for i in range(len(related_midi_file_names)):
                     for msg in mid.tracks[k]:
                         cumulative_ticks[k] += msg.time
                     cumulative_ticks.append(0)
+                    print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
                 return max(cumulative_ticks)
             if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
             j > 0 and merge_midi == True and related_midi_file_names[i][j][0] == "0"):
