@@ -108,21 +108,18 @@ for i in range(len(related_midi_file_names)):
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     midi_file_altered = True
         if merge_midi == True:
-
             if j == 0:
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
                 cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-                print("cumulative_time: ", cumulative_time)
+                print("cumulative_ticks: ", cumulative_ticks)
             else:
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
                         tempo_hits = []
                         message_string = str(mid.tracks[k][l])
-                        print("message_string: ", message_string)
-                        print("mid.tracks[k][l]: ", mid.tracks[k][l])
                         if "time=" in message_string:
                             time = int(re.findall(r"time=(\d+)", message_string)[0])
-                            message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time+cumulative_time)), message_string)
+                            message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time+cumulative_ticks)), message_string)
                             if "note_" in message_string:
                                 note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                                 message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
@@ -130,17 +127,9 @@ for i in range(len(related_midi_file_names)):
                             elif "MetaMessage" in message_string:
                                 mid.tracks[k][l] = eval("mido." + message_string)
 
-                    cumulative_time += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-                    print("cumulative_time: ", cumulative_time)
+                    cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
+                    print("cumulative_ticks: ", cumulative_ticks)
                     mid_merged.tracks.append(merge_tracks(mid.tracks))
-                # print("cumulative_time: ", cumulative_time)
-                # mid_merged.tracks.append(merge_tracks(mid.tracks))
-                # for k in range(len(mid.tracks)):
-                #
-                #     if k == 0:
-                #         mid_merged.tracks.append(mid.tracks[k])
-                #     else:
-                #         mid_merged.tracks[-1].append(mid.tracks[k])
 
         if midi_file_altered:
             new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
@@ -157,6 +146,7 @@ for i in range(len(related_midi_file_names)):
                     os.remove(paths_midi_files[k][:-4] + '.wav')
                     with open("midi_tracks (after changes).txt", "a+") as f:
                         f.write(str(mid))
+                    break
         related_midi_file_names[i][j] = new_file_name
 
     if merge_midi == True:
