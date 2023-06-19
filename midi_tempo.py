@@ -99,12 +99,17 @@ for i in range(len(related_midi_file_names)):
                 #duration(ms) = ticks / tpb * temp
                 if ("set_tempo" in message_string and tempo_reference and len(different_track_tempos) > 1 and
                 tempo_reference != different_track_tempos[-1][2]):
-                    if k == 0:
-                        print("tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
                     tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
+                    if k == 0:
+                        print("\n\n1-tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
+                        print("tick_adjustment_ratio: ", tick_adjustment_ratio)
                 elif ("set_tempo" in message_string and tempo_reference and len(different_track_tempos) > 1 and
                 tempo_reference == different_track_tempos[-1][2]):
                     tick_adjustment_ratio = ticks_per_beat_correction_ratio
+                    if k == 0:
+                        print("\n\n2-tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
+                        print("tick_adjustment_ratio: ", tick_adjustment_ratio)
+
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
@@ -115,7 +120,7 @@ for i in range(len(related_midi_file_names)):
                     midi_file_altered = True
 
 
-
+        print("\n\nmidi_file_altered, tick_adjustment_ratio: ", midi_file_altered, tick_adjustment_ratio)
 
         # if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
         # j > 0 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
