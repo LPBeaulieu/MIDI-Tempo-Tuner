@@ -168,7 +168,8 @@ for i in range(len(related_midi_file_names)):
                                 mid.tracks[k][l] = eval("Message(" + message_string + ")")
                             elif "MetaMessage" in message_string:
                                 mid.tracks[k][l] = eval("mido." + message_string)
-                            return mid
+                            break
+                return mid
 
             mid = adjust_starting_tick(mid, cumulative_ticks)
 
