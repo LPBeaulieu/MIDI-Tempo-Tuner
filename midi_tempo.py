@@ -1,5 +1,5 @@
-#TODO
-#1- Fix error when there are unmatched files (raise EOFError)
+## TODO:
+#1- test with unmatched files
 
 
 import math
@@ -8,22 +8,35 @@ from mido import Message, MidiFile, MidiTrack, MetaMessage, merge_tracks
 import glob
 import os
 import re
+from midi2audio import FluidSynth
+from pydub import AudioSegment
+
 
 
 cwd = os.getcwd()
-
-
-from midi2audio import FluidSynth
-from pydub import AudioSegment
 path_sf2 = os.path.join(cwd, "*.sf2")
 sf2_file = glob.glob(path_sf2)[0]
 fs = FluidSynth(sf2_file)
+#Should you want to normalize the volume of your tracks, you could then pass
+#in the "normalization:target dBFS" argument when running the code, with "target dBFS"
+#being your target decibels relative to full scale (or dBFS for short). The default
+#target dBFS is set to -20 dB and will change to any number you provide after the colon.
+#The code will then perform average amplitude normalization according to the difference
+#between the target dBFS and that of the audio track being normalized. This difference
+#will then be used to apply gain correction to the audiosegment.
 target_dBFS = -20
 
+#The MIDI files within the "MIDI Files IN" folder in which you will place
+#the MIDI files to be merged and/or tempo-adjusted, are retrieved using
+#a "glob.glob()" method. Their file name without the root path (the "replace"
+#method preceding the "split('/')" makes the code compatible with Windows
+#paths. The paths are stored in the "midi_file_names" variable).
 paths_midi_files_path = os.path.join(cwd, "MIDI Files IN", "*.mid")
 paths_midi_files = glob.glob(paths_midi_files_path)
 midi_file_names = [path.replace("\\", "/").split("/")[-1] for path in paths_midi_files]
 
+#Should there be no MIDI files within the "MIDI Files IN" folder, you will be
+#prompted to add some.
 if midi_file_names == []:
     sys.exit('\nPlease place at least one MIDI (".mid") file within the "MIDI Files IN" folder.')
 
@@ -31,6 +44,7 @@ if midi_file_names == []:
 #and/or merged MIDI files.
 if not os.path.exists(os.path.join(cwd, "MIDI Files OUT")):
     os.makedirs(os.path.join(cwd, "MIDI Files OUT"))
+
 
 tempo_substitution_done = False
 tempo = None
@@ -59,6 +73,8 @@ for i in range(len(related_midi_file_names)):
     file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
+
+        """REMOVE"""
         # with open("What is going on.txt", "a+") as what:
         #     what.write("\n\ni, j, related_midi_fil_names[i][0]:\n "  + str(i) + " " +  str(j) + " " + related_midi_file_names[i][j] + "\n\n")
         #     what.write(str(mid))
@@ -92,8 +108,6 @@ for i in range(len(related_midi_file_names)):
                         different_track_tempos.append([k, l, tempo_hits[0]])
                         if j == 0 and k == 0:
                             tempo_reference = tempo_hits[0]
-                            print("\n\ntempo_reference: ", tempo_reference)
-                            print("\n\nticks_per_beat_reference: ", ticks_per_beat_reference)
                         #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
                         #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
@@ -103,8 +117,6 @@ for i in range(len(related_midi_file_names)):
                         tempo_reference != different_track_tempos[-1][2]):
                             message_string = re.sub(r"(tempo=\d+)", "tempo=" +
                             str(tempo_reference), message_string)
-                            print("\n\nmessage_string: ", message_string)
-                            #mid.tracks[k][l] = MetaMessage(message_string)
                             mid.tracks[k][l] = eval("mido." + message_string)
                             first_tempo_found = True
                         else:
@@ -113,14 +125,10 @@ for i in range(len(related_midi_file_names)):
                         tempo_reference != different_track_tempos[-1][2]):
                             tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
                             if k == 0:
-                                print("\n\n1-tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
-                                print("tick_adjustment_ratio: ", tick_adjustment_ratio)
                         elif (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference == different_track_tempos[-1][2]):
                             tick_adjustment_ratio = ticks_per_beat_correction_ratio
                             if k == 0:
-                                print("\n\n2-tempo_reference, different_track_tempos[-1][2]: ", tempo_reference, different_track_tempos[-1][2])
-                                print("tick_adjustment_ratio: ", tick_adjustment_ratio)
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
@@ -130,31 +138,12 @@ for i in range(len(related_midi_file_names)):
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     midi_file_altered = True
 
-        print("\n\nmidi_file_altered, tick_adjustment_ratio: ", midi_file_altered, tick_adjustment_ratio)
-
-        # if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
-        # j > 0 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
-
-        print("\n\n1-related_midi_file_names, merge_midi: ", related_midi_file_names, merge_midi)
         if (j == 0 and merge_midi == True and related_midi_file_names[i][0][0] != "0" or
         j == 1 and merge_midi == True and related_midi_file_names[i][0][0] == "0"):
             for k in range(len(mid.tracks)):
                 mid_merged.tracks.append(mid.tracks[k])
-            print("\n\nFIRST FILE MERGED!!1!1!")
-            print("\n\n" + str(mid_merged))
-            #mid_merged.tracks.append(merge_tracks(mid.tracks))
             cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-            # with open("midi_tracks (after changes, merged).txt", "a+") as f:
-            #     f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
-            #     f.write(str(mid))
-        # elif j > 0 and merge_midi == True and related_midi_file_names[i][0][0] == "0":
-        #     mid_merged.tracks.append(merge_tracks(mid.tracks))
-        #     cumulative_ticks = math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-        #     with open("midi_tracks (after changes, merged).txt", "a+") as f:
-        #         f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
-        #         f.write(str(mid))
         elif j > 0 and merge_midi == True:
-            print("\n\n2-j, related_midi_file_names[i][j], merge_midi: ", j, related_midi_file_names[i][j], merge_midi)
             def adjust_starting_tick(mid, cumulative_ticks):
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
@@ -174,20 +163,11 @@ for i in range(len(related_midi_file_names)):
             mid = adjust_starting_tick(mid, cumulative_ticks)
 
             cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-            print("\n\nj, cumulative_ticks: ", j, cumulative_ticks)
-            print("\n\nlen(mid_merged.tracks): ", len(mid_merged.tracks))
             for k in range(len(mid.tracks)):
                 mid_merged.tracks.append(mid.tracks[k])
 
-
-
-            #mid_merged.tracks.append(merge_tracks(mid.tracks))
-
-            # with open("midi_tracks (after changes, merged).txt", "a+") as f:
-            #     f.write("\n\n" + related_midi_file_names[i][j] + "\n\n")
-            #     f.write(str(mid))
-
-        # elif midi_file_altered:
+        # elif (len(related_midi_file_names[i]) == 1 or len(related_midi_file_names[i]) == 2 and
+        # related_midi_file_names[i][0][0] != "0" and midi_file_altered):
         #     new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
         #     for k in range(len(midi_file_names)):
         #         if midi_file_names[k] == related_midi_file_names[i][j]:
@@ -206,7 +186,8 @@ for i in range(len(related_midi_file_names)):
         #     related_midi_file_names[i][j] = new_file_name
 
     if merge_midi == True:
-        path_merged_midi = os.path.join(cwd, "MIDI Files IN", file_name[:-4] + " (merged).mid")
+        MIDI_file_name = file_name[:-4] + " (merged).mid"
+        path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
         mid_merged.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
         song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
@@ -215,9 +196,50 @@ for i in range(len(related_midi_file_names)):
         song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
         os.remove(path_merged_midi[:-4] + '.wav')
 
+        """REMOVE"""
         with open("midi_tracks (after changes, merged).txt", "w+") as f:
             f.write(str(mid_merged))
 
+    else:
+        for j in range(len(related_midi_file_names[i])):
+            MIDI_file_name = related_midi_file_names[i][0]
+            if midi_file_name[0] != "0":
+                break
+    if related_midi_file_names[i][0][0] == "0":
+
+        def find_first_note_and_tempo(mid, first_note):
+            found_first_note = False
+            found_tempo = False
+            note_duration = 0
+            for j in range(len(mid.tracks)):
+                for k in range(len(mid.tracks[j])):
+                    if found_first_note and found_tempo:
+                        return note_duration, note, tempo
+                    message_string = str(mid.tracks[j][k])
+                    if found_tempo == False and "tempo=" in message_string:
+                        tempo = int(re.findall(r"tempo=(\d+)", message_string)[0])
+                        found_tempo = True
+                    elif not first_note and not found_first_note and "note_" in message_string:
+                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                        note = int(re.findall(r"note=(\d+)", message_string)[0])
+                    elif first_note and not found_first_note and "note_" in message_string:
+                        note = int(re.findall(r"note=(\d+)", message_string)[0])
+                        if note == found_note:
+                            note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                    elif (note and not found_first_note and "note_" in message_string and
+                     int(re.findall(r"note=(\d+)", message_string)[0]) == note):
+                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+                        if "note_off" in message_string or "velocity=0" in message_string:
+                            found_first_note = True
+                    elif note:
+                        note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
+
+
+        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
+        note_duration, note, tempo = find_first_note_and_tempo(mid, None)
+
+        mid_reference = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][0]))
+        note_duration_reference, note_reference, tempo_reference = find_first_note_and_tempo(mid_reference)
 
 
 
