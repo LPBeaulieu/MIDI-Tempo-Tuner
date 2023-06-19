@@ -28,7 +28,7 @@ fs = FluidSynth(sf2_file)
 target_dBFS = None
 
 
-target_tempo = None
+tempo_adjustment = None
 
 if len(sys.argv) > 1:
     #The "try/except" statement will
@@ -48,7 +48,7 @@ if len(sys.argv) > 1:
             elif sys.argv[i][:5].strip().lower() == "tempo":
                 tempo_split = [element for element in sys.argv[i].strip().split(":") if element != ""]
                 if len(tempo_split) > 1:
-                    target_tempo = int(tempo_split[1].strip())
+                    tempo_adjustment = int(tempo_split[1].strip())
     except:
         pass
 
@@ -251,14 +251,17 @@ for i in range(len(related_midi_file_names)):
                 elif note:
                     note_duration += int(re.findall(r"time=(\d+)", message_string)[0])
 
-    def apply_tempo_correction(mid, tempo_correction_ratio):
+    def apply_tempo_correction(mid, tempo_adjustment):
         for j in range(len(mid.tracks)):
             for k in range(len(mid.tracks[j])):
                 message_string = str(mid.tracks[j][k])
                 if "set_tempo" in message_string:
                     tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
                     print("\n\ntempo: ", tempo)
-                    tempo = math.floor(tempo*tempo_correction_ratio)
+                    if isinstance(tempo_adjustment, int):
+                        tempo = tempo_adjustment
+                    else:
+                        tempo = math.floor(tempo*tempo_adjustment)
                     print("\n\ntempo: ", tempo)
                     message_string = re.sub(r"(tempo=\d+)", "tempo=" +
                     str(tempo), message_string)
@@ -273,10 +276,8 @@ for i in range(len(related_midi_file_names)):
     else:
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
 
-    if target_tempo:
-        note_duration, note, tempo = find_first_note_and_tempo(mid, None)
-
-        if target_tempo < 5000:
+    if tempo_adjustment:
+        if tempo_adjustment < 5000:
             def find_notated_32nd_notes_per_beat(mid):
                 notated_32nd_notes_per_beat = 8
                 for j in range(len(mid.tracks)):
@@ -285,14 +286,14 @@ for i in range(len(related_midi_file_names)):
                         if "notated_32nd_notes_per_beat=" in message_string:
                             return int(re.findall(r"notated_32nd_notes_per_beat=(\d+),", message_string)[0])
 
-            notated_32nd_notes_per_beat = find_notated_32nd_notes_per_beat(mid, None)
+            notated_32nd_notes_per_beat = find_notated_32nd_notes_per_beat(mid)
             #microseconds/quarter-note = minute/beat * (32/notated_32nd_notes_per_beat)/4 * 60 seconds/minute * 1000000 us/second
-            new_tempo = math.floor(1/tempo * (32/notated_32nd_notes_per_beat)/4 * 60000000)
+            tempo_adjustment = math.floor(1/tempo_adjustment * (32/notated_32nd_notes_per_beat)/4 * 60000000)
 
-        mid = apply_tempo_correction(mid, tempo_correction_ratio)
+        mid = apply_tempo_correction(mid, tempo_adjustment)
         MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
         path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
-        mid_merged.save(path_merged_midi)
+        mid.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
         song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
         if target_dBFS:
@@ -315,11 +316,11 @@ for i in range(len(related_midi_file_names)):
 
         note_duration_us = note_duration / ticks_per_beat_reference * tempo_reference
         note_duration_reference_us =  note_duration_reference / ticks_per_beat_reference * tempo_reference
-        tempo_correction_ratio = note_duration_reference_us/note_duration_us
+        tempo_adjustment = note_duration_reference_us/note_duration_us
 
-        print("\n\ntempo_correction_ratio: ", tempo_correction_ratio)
+        print("\n\ntempo_adjustment: ", tempo_adjustment)
 
-        mid = apply_tempo_correction(mid, tempo_correction_ratio)
+        mid = apply_tempo_correction(mid, tempo_adjustment)
         MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
         path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
         mid.save(path_merged_midi)
@@ -330,3 +331,8 @@ for i in range(len(related_midi_file_names)):
             song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
         song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
         os.remove(path_merged_midi[:-4] + '.wav')
+
+        if len(related_midi_file_names) == 1:
+            print("\n\nThe new MIDI file with an adjusted tempo of " +
+            str(math.floor(1/(tempo_adjustment*tempo_reference) * 60000000)) + " bpm was created successfully.")
+            print("The reference file had a tempo of " + str(math.floor(1/tempo_reference * 60000000)) + " bpm.")
