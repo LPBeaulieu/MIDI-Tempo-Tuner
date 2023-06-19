@@ -46,8 +46,6 @@ for i in range(len(midi_file_names)):
         related_midi_file_names.append([[file_name]])
 
 for i in range(len(related_midi_file_names)):
-    print("\n\nrelated_midi_files_names[i]: ", related_midi_file_names[i])
-    print("")
     different_track_tempos = []
     ticks_per_beat_current_file = None
     ticks_per_beat_reference = None
@@ -58,11 +56,12 @@ for i in range(len(related_midi_file_names)):
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
         midi_file_altered = False
+        if (len(related_midi_file_names[i][j]) > 2 or len(related_midi_file_names[i][j]) > 1 and
+            related_midi_file_names[i][j][0] != "0"):
+            merge_midi = True
+            mid_merged = MidiFile(ticks_per_beat = ticks_per_beat_reference)
         if j == 0:
             ticks_per_beat_reference = mid.ticks_per_beat
-            if len(related_midi_file_names[i]) > 1 and related_midi_file_names[i][0][0] != "0":
-                merge_midi = True
-                mid_merged = MidiFile(ticks_per_beat = ticks_per_beat_reference)
         else:
             ticks_per_beat_current_file = mid.ticks_per_beat
         if j > 0 and ticks_per_beat_current_file != ticks_per_beat_reference:
@@ -109,7 +108,7 @@ for i in range(len(related_midi_file_names)):
                     midi_file_altered = True
 
 
-        if merge_midi == True:
+
             def get_ticks(mid):
                 cumulative_ticks = [0]
                 for k in range(len(mid.tracks)):
@@ -117,11 +116,14 @@ for i in range(len(related_midi_file_names)):
                         cumulative_ticks[k] += msg.time
                     cumulative_ticks.append(0)
                 return max(cumulative_ticks)
-
-            if j == 0:
+            if (j == 0 and merge_midi == True and related_midi_file_names[i][j][0] != "0" or
+            j > 0 and merge_midi == True and related_midi_file_names[i][j][0] == "0"):
+                print("\n\n1-related_midi_file_names, merge_midi: ", related_midi_file_names, merge_midi)
                 cumulative_ticks = get_ticks(mid)
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
-            else:
+            elif j > 0 and merge_midi == True:
+                cumulative_ticks = get_ticks(mid)
+                print("\n\n2-j, related_midi_file_names[i][j], merge_midi: ", j, related_midi_file_names[i][j], merge_midi)
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
                         message_string = str(mid.tracks[k][l])
@@ -139,23 +141,23 @@ for i in range(len(related_midi_file_names)):
                 cumulative_ticks += get_ticks(mid)
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
 
-        elif midi_file_altered:
-            new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
-            for k in range(len(midi_file_names)):
-                if midi_file_names[k] == related_midi_file_names[i][j]:
-                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
-                    midi_file_names[k] = new_file_name
-                    mid.save(paths_midi_files[k])
-                    fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
-                    song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
-                    delta_dBFS = target_dBFS - song_audiosegment.dBFS
-                    song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
-                    song_audiosegment.export(paths_midi_files[k][:-4] + '.mp3', format="mp3", bitrate="320k")
-                    os.remove(paths_midi_files[k][:-4] + '.wav')
-                    with open("midi_tracks (after changes).txt", "a+") as f:
-                        f.write(str(mid))
-                    break
-            related_midi_file_names[i][j] = new_file_name
+        # elif midi_file_altered:
+        #     new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
+        #     for k in range(len(midi_file_names)):
+        #         if midi_file_names[k] == related_midi_file_names[i][j]:
+        #             paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
+        #             midi_file_names[k] = new_file_name
+        #             mid.save(paths_midi_files[k])
+        #             fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
+        #             song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
+        #             delta_dBFS = target_dBFS - song_audiosegment.dBFS
+        #             song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+        #             song_audiosegment.export(paths_midi_files[k][:-4] + '.mp3', format="mp3", bitrate="320k")
+        #             os.remove(paths_midi_files[k][:-4] + '.wav')
+        #             with open("midi_tracks (after changes).txt", "a+") as f:
+        #                 f.write(str(mid))
+        #             break
+        #     related_midi_file_names[i][j] = new_file_name
 
     if merge_midi == True:
         path_merged_midi = os.path.join(cwd, "MIDI Files IN", file_name[:-4] + " (merged).mid")
