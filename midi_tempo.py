@@ -107,6 +107,7 @@ for i in range(len(related_midi_file_names)):
                     message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     midi_file_altered = True
+
         if merge_midi == True:
             if j == 0:
                 mid_merged.tracks.append(merge_tracks(mid.tracks))
@@ -115,7 +116,6 @@ for i in range(len(related_midi_file_names)):
             else:
                 for k in range(len(mid.tracks)):
                     for l in range(len(mid.tracks[k])):
-                        tempo_hits = []
                         message_string = str(mid.tracks[k][l])
                         if "time=" in message_string:
                             time = int(re.findall(r"time=(\d+)", message_string)[0])
@@ -126,12 +126,13 @@ for i in range(len(related_midi_file_names)):
                                 mid.tracks[k][l] = eval("Message(" + message_string + ")")
                             elif "MetaMessage" in message_string:
                                 mid.tracks[k][l] = eval("mido." + message_string)
+                            break
 
-                    cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
-                    print("cumulative_ticks: ", cumulative_ticks)
-                    mid_merged.tracks.append(merge_tracks(mid.tracks))
+                cumulative_ticks += math.floor(mid.length * 1000000 / tempo_reference * ticks_per_beat_reference)
+                print("cumulative_ticks: ", cumulative_ticks)
+                mid_merged.tracks.append(merge_tracks(mid.tracks))
 
-        if midi_file_altered:
+        elif midi_file_altered:
             new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
             for k in range(len(midi_file_names)):
                 if midi_file_names[k] == related_midi_file_names[i][j]:
