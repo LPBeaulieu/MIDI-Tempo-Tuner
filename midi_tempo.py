@@ -190,24 +190,21 @@ for i in range(len(related_midi_file_names)):
             for k in range(len(mid.tracks)):
                 mid_merged.tracks.append(mid.tracks[k])
 
-        # elif (len(related_midi_file_names[i]) == 1 or len(related_midi_file_names[i]) == 2 and
-        # related_midi_file_names[i][0][0] != "0" and midi_file_altered):
-        #     new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
-        #     for k in range(len(midi_file_names)):
-        #         if midi_file_names[k] == related_midi_file_names[i][j]:
-        #             paths_midi_files[k] = os.path.join(cwd, "MIDI Files IN", new_file_name)
-        #             midi_file_names[k] = new_file_name
-        #             mid.save(paths_midi_files[k])
-        #             fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
-        #             song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
-        #             delta_dBFS = target_dBFS - song_audiosegment.dBFS
-        #             song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
-        #             song_audiosegment.export(paths_midi_files[k][:-4] + '.mp3', format="mp3", bitrate="320k")
-        #             os.remove(paths_midi_files[k][:-4] + '.wav')
-        #             with open("midi_tracks (after changes).txt", "a+") as f:
-        #                 f.write(str(mid))
-        #             break
-        #     related_midi_file_names[i][j] = new_file_name
+        elif (len(related_midi_file_names[i]) == 1 or len(related_midi_file_names[i]) == 2 and
+        related_midi_file_names[i][0][0] == "0" and midi_file_altered):
+            new_file_name = related_midi_file_names[i][j][:-4] + " (one tempo).mid"
+            for k in range(len(midi_file_names)):
+                if midi_file_names[k] == related_midi_file_names[i][j]:
+                    paths_midi_files[k] = os.path.join(cwd, "MIDI Files OUT", new_file_name)
+                    midi_file_names[k] = new_file_name
+                    mid.save(paths_midi_files[k])
+                    fs.midi_to_audio(paths_midi_files[k], paths_midi_files[k][:-4] + '.wav')
+                    song_audiosegment = AudioSegment.from_wav(paths_midi_files[k][:-4] + '.wav')
+                    delta_dBFS = target_dBFS - song_audiosegment.dBFS
+                    song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+                    song_audiosegment.export(paths_midi_files[k][:-4] + '.mp3', format="mp3", bitrate="320k")
+                    os.remove(paths_midi_files[k][:-4] + '.wav')
+                    break
 
     if merge_midi == True:
         MIDI_file_name = file_name[:-4] + " (merged).mid"
@@ -225,11 +222,6 @@ for i in range(len(related_midi_file_names)):
         with open("midi_tracks (after changes, merged).txt", "w+") as f:
             f.write(str(mid_merged))
 
-    else:
-        for j in range(len(related_midi_file_names[i])):
-            MIDI_file_name = related_midi_file_names[i][0]
-            if midi_file_name[0] != "0":
-                break
 
     def find_first_note_and_tempo(mid, first_note):
         found_first_note = False
@@ -271,14 +263,18 @@ for i in range(len(related_midi_file_names)):
                     message_string = re.sub(r"(tempo=\d+)", "tempo=" +
                     str(tempo), message_string)
                     mid.tracks[j][k] = eval("mido." + message_string)
-                    return mid
+                    print("\n\nmid.tracks[j][k]: ", mid.tracks[j][k])
+        return mid
+
+    if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
+        mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
+    elif midi_file_altered:
+        mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", new_file_name))
+    else:
+        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
 
     if target_tempo:
-        if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
-            mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
-        else:
-            mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
-            note_duration, note, tempo = find_first_note_and_tempo(mid, None)
+        note_duration, note, tempo = find_first_note_and_tempo(mid, None)
 
         if target_tempo < 5000:
             def find_notated_32nd_notes_per_beat(mid):
@@ -306,7 +302,6 @@ for i in range(len(related_midi_file_names)):
         os.remove(path_merged_midi[:-4] + '.wav')
 
     elif related_midi_file_names[i][0][0] == "0":
-        mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
         note_duration, note, tempo = find_first_note_and_tempo(mid, None)
 
         print("\n\nnote_duration: ", note_duration)
@@ -324,13 +319,10 @@ for i in range(len(related_midi_file_names)):
 
         print("\n\ntempo_correction_ratio: ", tempo_correction_ratio)
 
-        if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
-            mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
-
         mid = apply_tempo_correction(mid, tempo_correction_ratio)
         MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
         path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
-        mid_merged.save(path_merged_midi)
+        mid.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
         song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
         if target_dBFS:
