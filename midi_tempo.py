@@ -18,8 +18,6 @@ import sys
 
 
 cwd = os.getcwd()
-path_sf2 = os.path.join(cwd, "*.sf2")
-sf2_file = glob.glob(path_sf2)[0]
 fs = FluidSynth(sf2_file)
 #Should you want to normalize the volume of your tracks, you could then pass
 #in the "normalization:target dBFS" argument when running the code, with "target dBFS"
@@ -54,6 +52,96 @@ if len(sys.argv) > 1:
                     tempo_adjustment = int(tempo_split[1].strip())
     except:
         pass
+
+
+
+#The function "audio_parameters()" extracts the parenthesized values of the SoundFont
+#number and "target_dBFS" from the end of the SoundFont files (".sf2") and audio files.
+#This will allow to pair up MIDI files with their respective SoundFont files, and to
+#override any default or user selected values of "target_dBFS" that would otherwise
+#apply to all audio files. Any "target_dBFS" values found at the end of SoundFont files
+#will apply to all the MIDI files of matching SoundFont number. For example, the target
+#dBFS of -25 dB from the SountFont file named "Piano(1 -25).sf2" would apply to all of
+#the midi files of the following format: "MIDI_file_name(1).mid". Furthermore, you can
+#further fine-tune the normalization process by specifying a target dBFS for a given
+#audio file, by including it within parentheses at the end of the file name. For instance,
+#the MIDI file with the following file name "MIDI_file_name(-28 1).mid" would have a
+#target dBFS of -28 dB, in spite of the "Piano(1 -25).sf2" file which would still apply the
+#-25 dB target dBFS to the other MIDI files of the same SoundFont number (1). For other
+#audio file types than midi, just add the target dBFS within parentheses at the end of
+#the file name (ex: "mp3_file_name(-27).mp3") and the default -20 dB or any other value
+#that you passed in with the "normalize:" argument would still apply to the other audio
+#files that do not end with such a parenthesized expression.
+def audio_parameters(file_name):
+    dBFStarget_soundfont_matches_split = None
+    #The r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z" pattern will look for the presence of
+    #a parenthesized expression at the end ("\Z") of "file name" that either contains
+    #a negative integer ("-\d+") by itself or preceded or followed by a positive integer
+    #("\d+") with one space in-between the two instances. For example: the file name
+    #extracted from a MIDI file "Harpsichord Sonata in D, catalog K 141, by (it)Domenico
+    #Scarlatti(it)(-20 3)" would return "[-20, 3]", with "-20" being the new value of the
+    #target dBFS ("target_dBFS"), and "3" being the SoundFont file number included in
+    #the working folder. Another match that the "finditer" function can return is a
+    #single positive integer by itself ("\d+"), to indicate the SoundFont file number,
+    #with the "target_dBFS" being the default one or the one specified after the
+    #"normalize:" argument.
+    dBFStarget_soundfont_hits = re.finditer(r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z", file_name)
+    #The strip() method will remove spaces after the opening parenthesis and before
+    #the closing parenthesis. For example: ( 2 -30 ) will return (2 -30)
+    #(without the parentheses). The contents of the parentheses will then be split
+    #along spaces to separate the SoundFont number from the target dBFS and then
+    #each resulting string will be converted into integers using a map() method.
+    dBFStarget_soundfont_matches =[m.group(1).strip().split(" ") for m in dBFStarget_soundfont_hits if m.group(1)]
+    dBFStarget_soundfont_matches = [list(map(int, element)) for element in dBFStarget_soundfont_matches]
+    if dBFStarget_soundfont_matches:
+        #As the "list(map())" method introduced a new layer of lists, it is
+        #now removed by indexing the first element of "dBFStarget_soundfont_matches".
+        dBFStarget_soundfont_matches = dBFStarget_soundfont_matches[0]
+    return dBFStarget_soundfont_matches
+
+
+path_sf2 = os.path.join(cwd, "*.sf2")
+sf2_files = glob.glob(path_sf2)
+if sf2_files == []:
+    sys.exit('\n\nPlease include at least one SoundFont (".sf2") file within your working folder.')
+else:
+    len_sf2_files = len(sf2_files)
+    for i in range(len_sf2_files):
+        sf2_file_name = "".join(sf2_files[i].split(".")[:-1]).replace("\\", "/").split("/")[-1]
+        dBFStarget_soundfont_file = audio_parameters(sf2_file_name)
+        if dBFStarget_soundfont_file:
+            #The elements of the list "dBFStarget_soundfont_file" are sorted in reverse order,
+            #in order to have the positive SoundFont number first, followed by the negative
+            #target dBFS.
+            list_soundfonts_dBFStarget.append(sorted(dBFStarget_soundfont_file, reverse = True))
+
+    #If "list_soundfonts_dBFStarget = []" this means that none of the "sf2" files in the working folder
+    #have parenthesized SoundFont numbers nor target dBFS values. This is only acceptable if there is
+    #only one "sf2" file within the working folder, as all of the MIDIs could be rendered from that file.
+    #If "list_soundfonts_dBFStarget != []" and each item of the list "sf2_files" has returned a positive
+    #number corresponding to the SoundFont number (or if there was only one file in "sf2_files"), then the
+    #corresponding "sf2" file path is concatenated to each element of "list_soundfonts_dBFStarget" before
+    #sorting it along the first element, corresponding to the SountFont number if "len_sf2_files" is
+    #greater than one.
+    if list_soundfonts_dBFStarget == [] and len_sf2_files == 1:
+        list_soundfonts_dBFStarget = [sf2_files[0]]
+    elif (list_soundfonts_dBFStarget != [] and len(list_soundfonts_dBFStarget) == len_sf2_files and
+    (len_sf2_files == 1 or (len_sf2_files > 1 and all([element[0] > 0 for element in list_soundfonts_dBFStarget])))):
+        list_soundfonts_dBFStarget = [list_soundfonts_dBFStarget[i] + [sf2_files[i]] for i in range(len_sf2_files)]
+        list_soundfonts_dBFStarget.sort(key = lambda x:x[0])
+    else:
+        sys.exit('\n\nPlease add the SoundFont file number in parentheses at the end of the SoundFont file name. ' +
+        'This will allow the code to match the SoundFont number of the MIDI files to that of the SoundFont file.' +
+        'For example: "midi_file(1).mid" would be rendered using the SoundFont file "piano_soundfont(1).sf2".' +
+        'Should you also want to specify a target dBFS for a given SoundFont file that will be applied to all ' +
+        'MIDI files of the matching SoundFont number, enter the negative decibel value (without units) in the same ' +
+        'parenthesis, separated by a space from the SoundFont number. For example: "midi_file(1).mid" would be rendered ' +
+        'using the SoundFont file "piano_soundfont(1 -30).sf2", with a target dBFS of -30 dB. Furthermore, should you ' +
+        'like to specify a target dBFS that would apply to a single MIDI file, simply enter it along with the SoundFont ' +
+        'number within parentheses at the end of the MIDI file name. For instance, the target dBFS of -35 dB would be ' +
+        'used to render the MIDI file with the following name "other_midi_file(-35 1).mid", and the -30 dB target dBSF of ' +
+        'the "piano_soundfont(1 -30).sf2" would then only apply to "midi_file(1).mid".')
+
 
 #The MIDI files within the "MIDI Files IN" folder in which you will place
 #the MIDI files to be merged and/or tempo-adjusted, are retrieved using
@@ -108,6 +196,145 @@ for i in range(len(midi_file_names)):
     #compatibility.
     file_name = re.sub(r"\A(\d+-)", "", midi_file_names[i])
 
+    #The variable "old_target_dBFS", initialized to "None" for
+    #every new song in "song_list", will store the initial
+    #value of "target_dBFS" before giving precedence to any
+    #values of "target_dBFS" found in the SoundFont (".sf2")
+    #or audio file names. Upon rendering the song, the value
+    #of "target_dBFS" will be reverted back to that of "old_target_dBFS",
+    #in order to preserve the general settings defined when passing
+    #in the "normalize:" argument or the default value of "target_dBFS"
+    #of -20 dB.
+    old_target_dBFS = None
+    #The variable "soundfont_number", initialized to "None" for
+    #every new song in "song_list", will contain the parenthesized
+    #sound font number found at the end of the SoundFont (".sf2") and
+    #corresponding MIDI (".mid") files. Its value will be updated to that
+    #of the SoundFont file found in the working folder, should there only
+    #be one "sf2" file in that location.
+    soundfont_number = None
+    #An "Audiosegment" object is instantiated from the song path in the "try" statement.
+    #The original bit rate would then be stored within the variable "original_bitrate",
+    #and the minimum between this and the default bit rate or the one specified
+    #by the user will be selected as the bit rate for exporting the audio files, as
+    #the output bit rate cannot exceed the original bit rate.
+    #Also, should you have provided a value for "target_dBFS" and/or SoundFont number
+    #(for MIDI files specifically) for a specific song within parentheses at the end
+    #of the file name, this information would be extracted at this point, and the
+    #file name would be updated to remove such parenthesized expressions, so that
+    #they wouldn't appear in the final file names nor in the TTS-rendered text.
+    try:
+        dBFStarget_soundfont = audio_parameters(song_list[i][0])
+        if dBFStarget_soundfont or len(list_soundfonts_dBFStarget) == 1:
+            #Cycling through every element of the list "dBFStarget_soundfont", returned
+            #by the "audio_parameters()" function. If the the value of the element is
+            #positive, it is stored in "soundfont_number", as any other values returned
+            #by the function would be negative and correspond to the updated value of
+            #"target_dBFS" for this audio track.
+            for j in range(len(dBFStarget_soundfont)):
+                if dBFStarget_soundfont[j] >= 0:
+                    soundfont_number = dBFStarget_soundfont[j]
+                elif dBFStarget_soundfont[j] < 0:
+                    old_target_dBFS = target_dBFS
+                    target_dBFS = dBFStarget_soundfont[j]
+            #Should the audio track be a MIDI file and the "soundfont_number"
+            #not be addigned, given that the MIDI file did not end in a parenthesized
+            #positive number (ex: "midi_file_name(-25).mid"), and since there has to
+            #be at least one SoundFont file in the working folder a this point (because
+            #otherwise the above code would have run ("sys.exit('\n\nPlease include at
+            #least one SoundFont (".sf2") file within your working folder.')"), it can
+            #be deduced that the MIDI files correspond to the first (or only) element
+            #of list_soundfonts_dBFStarget. Should you have placed multiple SoundFont
+            #files within the working folder containing a parenthesized positive
+            #"soundfont_number" value at the end of their names, the code would still
+            #select the first of these, and you would need to ensure that the proper
+            #SoundFont was selected. Otherwise, you would need to add the SoundFont
+            #information at the end of your MIDI file name (ex: "midi_file_name(1 -25).mid").
+            if file_extensions[i] == "mid" and soundfont_number == None:
+                for j in range(len(list_soundfonts_dBFStarget[0])):
+                    if isinstance(list_soundfonts_dBFStarget[0][j], int)  and  list_soundfonts_dBFStarget[0][j] >= 0:
+                        soundfont_number = list_soundfonts_dBFStarget[0][j]
+                        break
+        #The following "if" statement will extract the parenthesized "soundfont_number"
+        #and "target_dBFS" values found at the end of the SoundFont "sf2" file names that
+        #were returned by the "dBFStarget_soundfont_file = audio_parameters(sf2_file_name)"
+        #code above and then stored within the "list_soundfonts_dBFStarget" list, along
+        #with the corresponding path of the "sf2" files.
+        #A "FluidSynth" object is instantiated from the "sf2" file path at index 2 of
+        #an element of "list_soundfonts_dBFStarget" of which the "soundfont_number"
+        #matches that of the MIDI file being rendered at index "i" of the "for i in
+        #range(len_song_list)" loop. As a reminder, the individual elements of
+        #"list_soundfonts_dBFStarget" contain in sequence the "soundfont_number",
+        #"target_dBFS" and "sf2" file path for a given SoundFont, with the possibility
+        #of only containing one, or the other, or none of "soundfont_number" and "target_dBFS"
+        #(the latter case being if the "sf2" didn't contain any parenthesized information,
+        #ex: "Piano.sf2").
+        if file_extensions[i] == "mid":
+            fs = None
+            for j in range(len(list_soundfonts_dBFStarget)):
+                #Should the element of "list_soundfonts_dBFStarget" under
+                #investigation have a length of three or more, it means that
+                #it contains in sequence values of "soundfont_number", "target_dBFS"
+                #and the "sf2" file path for that SoundFont file. Provided that
+                #the "sf2" "soundfont_number" matches that of the MIDI file, these
+                #values are then stored in the corresponding variables, with
+                #"target_dBFS" only being updated if its value is "None", meaning
+                #that the MIDI file didn't contain a parenthesized "target_dBFS"
+                #value that would otherwise take precedence over any "target_dBFS"
+                #specified in the "sf2" file name.
+                if len(list_soundfonts_dBFStarget[j]) > 2:
+                    if soundfont_number == list_soundfonts_dBFStarget[j][0]:
+                        fs = FluidSynth(list_soundfonts_dBFStarget[j][2])
+                        if old_target_dBFS == None:
+                            old_target_dBFS = target_dBFS
+                            target_dBFS = list_soundfonts_dBFStarget[j][1]
+                        break
+                #Should the current element of "list_soundfonts_dBFStarget"
+                #under investigation have a length of two, it means that it
+                #contains either "soundfont_number" (a positive integer) or
+                #"target_dBFS" (a negative integer), followed by the path of
+                #the "sf2" file. The "if" and "elif" statements deal with
+                #these possibilities, with the "soundfont_number" being checked
+                #first in case a matching "soundfont_number" to that of the
+                #current MIDI file can be found.
+                elif len(list_soundfonts_dBFStarget[j]) == 2:
+                    if (list_soundfonts_dBFStarget[j][0] >= 0 and
+                    soundfont_number == list_soundfonts_dBFStarget[j][0]):
+                        fs = FluidSynth(list_soundfonts_dBFStarget[j][1])
+                        break
+                    #The "elif" statement only applies should there only be
+                    #one SoundFont file within the working folder and the
+                    #parenthesized value at the end of the "sf2" file name
+                    #is negative, meaning that it designates the value of
+                    #"target_dBFS" for that SoundFont file. Once again,
+                    #the value of "target_dBFS" is only updated if that
+                    #of "old_target_dBFS" be "None", in order to give
+                    #precedence to the "target_dBFS" found in the MIDI
+                    #file name, as mentioned above.
+                    elif (len_sf2_files == 1 and
+                    list_soundfonts_dBFStarget[j][0] < 0):
+                         fs = FluidSynth(list_soundfonts_dBFStarget[j][1])
+                         if old_target_dBFS == None:
+                             old_target_dBFS = target_dBFS
+                             target_dBFS = list_soundfonts_dBFStarget[j][0]
+            #As there is at least one SoundFont file within the working
+            #folder at this point in the code, should a "FluidSynth" object
+            #not yet have been instantiated, it is instantiated now using the
+            #first (or only) "sf2" file in the "sf2_files" list. This will
+            #ensure that the MIDI songs are rendered and that you will be able
+            #to check if the correct "sf2" was selected. This would give reliable
+            #results should only one "sf2" file be in the working folder and
+            #should all of the MIDI files require be rendered using that
+            #SoundFont file. In this case, you wouldn't need to provide parenthesized
+            #values of "soundfont_number" at the end of the SoundFont (".sf2") and
+            #MIDI (".mid") file names. In all other cases, you should include this
+            #information in the SoundFont and MIDI file names.
+            if not fs:
+                fs = FluidSynth(sf2_files[0])
+    except Exception as e:
+        sys.exit('\n\nThere was a problem when running the code: \n' + str(e))
+
+
 
     related_midi_file_names_list_comprehension = [fn for fn in midi_file_names if file_name]
     if related_midi_file_names_list_comprehension:
@@ -116,51 +343,6 @@ for i in range(len(midi_file_names)):
             related_midi_file_names.append(related_midi_file_names_list_comprehension)
     else:
         related_midi_file_names.append([[file_name]])
-
-
-#The function "audio_parameters()" extracts the parenthesized values of the SoundFont
-#number and "target_dBFS" from the end of the SoundFont files (".sf2") and audio files.
-#This will allow to pair up MIDI files with their respective SoundFont files, and to
-#override any default or user selected values of "target_dBFS" that would otherwise
-#apply to all audio files. Any "target_dBFS" values found at the end of SoundFont files
-#will apply to all the MIDI files of matching SoundFont number. For example, the target
-#dBFS of -25 dB from the SountFont file named "Piano(1 -25).sf2" would apply to all of
-#the midi files of the following format: "MIDI_file_name(1).mid". Furthermore, you can
-#further fine-tune the normalization process by specifying a target dBFS for a given
-#audio file, by including it within parentheses at the end of the file name. For instance,
-#the MIDI file with the following file name "MIDI_file_name(-28 1).mid" would have a
-#target dBFS of -28 dB, in spite of the "Piano(1 -25).sf2" file which would still apply the
-#-25 dB target dBFS to the other MIDI files of the same SoundFont number (1). For other
-#audio file types than midi, just add the target dBFS within parentheses at the end of
-#the file name (ex: "mp3_file_name(-27).mp3") and the default -20 dB or any other value
-#that you passed in with the "normalize:" argument would still apply to the other audio
-#files that do not end with such a parenthesized expression.
-def audio_parameters(file_name):
-    dBFStarget_soundfont_matches_split = None
-    #The r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z" pattern will look for the presence of
-    #a parenthesized expression at the end ("\Z") of "file name" that either contains
-    #a negative integer ("-\d+") by itself or preceded or followed by a positive integer
-    #("\d+") with one space in-between the two instances. For example: the file name
-    #extracted from a MIDI file "Harpsichord Sonata in D, catalog K 141, by (it)Domenico
-    #Scarlatti(it)(-20 3)" would return "[-20, 3]", with "-20" being the new value of the
-    #target dBFS ("target_dBFS"), and "3" being the SoundFont file number included in
-    #the working folder. Another match that the "finditer" function can return is a
-    #single positive integer by itself ("\d+"), to indicate the SoundFont file number,
-    #with the "target_dBFS" being the default one or the one specified after the
-    #"normalize:" argument.
-    dBFStarget_soundfont_hits = re.finditer(r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z", file_name)
-    #The strip() method will remove spaces after the opening parenthesis and before
-    #the closing parenthesis. For example: ( 2 -30 ) will return (2 -30)
-    #(without the parentheses). The contents of the parentheses will then be split
-    #along spaces to separate the SoundFont number from the target dBFS and then
-    #each resulting string will be converted into integers using a map() method.
-    dBFStarget_soundfont_matches =[m.group(1).strip().split(" ") for m in dBFStarget_soundfont_hits if m.group(1)]
-    dBFStarget_soundfont_matches = [list(map(int, element)) for element in dBFStarget_soundfont_matches]
-    if dBFStarget_soundfont_matches:
-        #As the "list(map())" method introduced a new layer of lists, it is
-        #now removed by indexing the first element of "dBFStarget_soundfont_matches".
-        dBFStarget_soundfont_matches = dBFStarget_soundfont_matches[0]
-    return dBFStarget_soundfont_matches
 
 
 for i in range(len(related_midi_file_names)):
@@ -174,7 +356,8 @@ for i in range(len(related_midi_file_names)):
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
 
-        
+
+
 
 
 
