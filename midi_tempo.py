@@ -1,6 +1,9 @@
 ## TODO:
 #1- test with unmatched files
 
+#1- Cap the start of each MIDI file at a certain number of microseconds to avoid awkward silences
+#2- Adjust velocity
+
 
 import math
 import mido
@@ -75,12 +78,37 @@ if not os.path.exists(os.path.join(cwd, "MIDI Files OUT")):
 tempo_substitution_done = False
 tempo = None
 
+
+
+related_midi_file_names = [[re.sub(r"\A(\d+.\d*-)", "", midi_file_names[i]), midi_file_names[i]] for i in range(len(midi_file_names))]
+print("\n\n1-related_midi_file_names: ", related_midi_file_names)
+related_midi_file_names.sort()
+print("\n\n2-related_midi_file_names: ", related_midi_file_names)
+
+reference_files = [file for file in related_midi_file_names if file[0][0] == "0"]
+if reference_files:
+    new_related_midi_file_names = []
+    starting_index = 0
+    for i in range(len(reference_files)):
+        new_related_midi_file_names.append([])
+        for j in range(starting_index, len(related_midi_file_names), len(reference_files)):
+            new_related_midi_file_names[-1].append(related_midi_file_names[j][1])
+        starting_index += 1
+    related_midi_file_names = new_related_midi_file_names
+else:
+    related_midi_file_names = [file[1] for file in related_midi_file_names]
+
+print("\n\n3-related_midi_file_names: ", related_midi_file_names)
+
+
 related_midi_file_names = []
 for i in range(len(midi_file_names)):
     #The midi file name is appended to the "file_names" list
     #The '.replace("\\", "/")' method is used to ensure Windows
     #compatibility.
     file_name = re.sub(r"\A(\d+-)", "", midi_file_names[i])
+
+
     related_midi_file_names_list_comprehension = [fn for fn in midi_file_names if file_name]
     if related_midi_file_names_list_comprehension:
         related_midi_file_names_list_comprehension = sorted(related_midi_file_names_list_comprehension)
@@ -88,6 +116,52 @@ for i in range(len(midi_file_names)):
             related_midi_file_names.append(related_midi_file_names_list_comprehension)
     else:
         related_midi_file_names.append([[file_name]])
+
+
+#The function "audio_parameters()" extracts the parenthesized values of the SoundFont
+#number and "target_dBFS" from the end of the SoundFont files (".sf2") and audio files.
+#This will allow to pair up MIDI files with their respective SoundFont files, and to
+#override any default or user selected values of "target_dBFS" that would otherwise
+#apply to all audio files. Any "target_dBFS" values found at the end of SoundFont files
+#will apply to all the MIDI files of matching SoundFont number. For example, the target
+#dBFS of -25 dB from the SountFont file named "Piano(1 -25).sf2" would apply to all of
+#the midi files of the following format: "MIDI_file_name(1).mid". Furthermore, you can
+#further fine-tune the normalization process by specifying a target dBFS for a given
+#audio file, by including it within parentheses at the end of the file name. For instance,
+#the MIDI file with the following file name "MIDI_file_name(-28 1).mid" would have a
+#target dBFS of -28 dB, in spite of the "Piano(1 -25).sf2" file which would still apply the
+#-25 dB target dBFS to the other MIDI files of the same SoundFont number (1). For other
+#audio file types than midi, just add the target dBFS within parentheses at the end of
+#the file name (ex: "mp3_file_name(-27).mp3") and the default -20 dB or any other value
+#that you passed in with the "normalize:" argument would still apply to the other audio
+#files that do not end with such a parenthesized expression.
+def audio_parameters(file_name):
+    dBFStarget_soundfont_matches_split = None
+    #The r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z" pattern will look for the presence of
+    #a parenthesized expression at the end ("\Z") of "file name" that either contains
+    #a negative integer ("-\d+") by itself or preceded or followed by a positive integer
+    #("\d+") with one space in-between the two instances. For example: the file name
+    #extracted from a MIDI file "Harpsichord Sonata in D, catalog K 141, by (it)Domenico
+    #Scarlatti(it)(-20 3)" would return "[-20, 3]", with "-20" being the new value of the
+    #target dBFS ("target_dBFS"), and "3" being the SoundFont file number included in
+    #the working folder. Another match that the "finditer" function can return is a
+    #single positive integer by itself ("\d+"), to indicate the SoundFont file number,
+    #with the "target_dBFS" being the default one or the one specified after the
+    #"normalize:" argument.
+    dBFStarget_soundfont_hits = re.finditer(r"[(](-\d+[ \d+]*|[\d+ ]*-\d+|\d+)[)]\Z", file_name)
+    #The strip() method will remove spaces after the opening parenthesis and before
+    #the closing parenthesis. For example: ( 2 -30 ) will return (2 -30)
+    #(without the parentheses). The contents of the parentheses will then be split
+    #along spaces to separate the SoundFont number from the target dBFS and then
+    #each resulting string will be converted into integers using a map() method.
+    dBFStarget_soundfont_matches =[m.group(1).strip().split(" ") for m in dBFStarget_soundfont_hits if m.group(1)]
+    dBFStarget_soundfont_matches = [list(map(int, element)) for element in dBFStarget_soundfont_matches]
+    if dBFStarget_soundfont_matches:
+        #As the "list(map())" method introduced a new layer of lists, it is
+        #now removed by indexing the first element of "dBFStarget_soundfont_matches".
+        dBFStarget_soundfont_matches = dBFStarget_soundfont_matches[0]
+    return dBFStarget_soundfont_matches
+
 
 for i in range(len(related_midi_file_names)):
     different_track_tempos = []
@@ -99,6 +173,10 @@ for i in range(len(related_midi_file_names)):
     file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
     for j in range(len(related_midi_file_names[i])):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
+
+        
+
+
 
         """REMOVE"""
         # with open("What is going on.txt", "a+") as what:
@@ -137,7 +215,7 @@ for i in range(len(related_midi_file_names)):
                         #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
                         #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
-                            mid.tracks[k][l] = (MetaMessage("text", text='Previous "set_tempo value: "' +
+                            mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
                             str(tempo_hits[0])))
                         elif (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference != different_track_tempos[-1][2]):
@@ -256,6 +334,7 @@ for i in range(len(related_midi_file_names)):
             for k in range(len(mid.tracks[j])):
                 message_string = str(mid.tracks[j][k])
                 if "set_tempo" in message_string:
+                    print("\n\nmessage_string: ", message_string)
                     tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
                     print("\n\ntempo: ", tempo)
                     if isinstance(tempo_adjustment, int):
@@ -291,7 +370,7 @@ for i in range(len(related_midi_file_names)):
             tempo_adjustment = math.floor(1/tempo_adjustment * (32/notated_32nd_notes_per_beat)/4 * 60000000)
 
         mid = apply_tempo_correction(mid, tempo_adjustment)
-        MIDI_file_name = file_name[:-4] + " (adjusted tempo).mid"
+        MIDI_file_name = file_name[:-4] + ".mid"
         path_merged_midi = os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)
         mid.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
