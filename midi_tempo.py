@@ -200,7 +200,6 @@ print("\n\n3-related_midi_file_names: ", related_midi_file_names)
 
 
 for i in range(len(related_midi_file_names)):
-    different_track_tempos = []
     ticks_per_beat_current_file = None
     ticks_per_beat_reference = None
     tempo_reference = None
@@ -212,6 +211,9 @@ for i in range(len(related_midi_file_names)):
     file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
     reference_maximum_velocity = 0
     for j in range(len(related_midi_file_names[i])):
+
+        different_track_tempos = []
+
         current_maximum_velocity = 0
         #The variable "old_target_dBFS", initialized to "None" for
         #every new song in "song_list", will store the initial
@@ -343,6 +345,8 @@ for i in range(len(related_midi_file_names)):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
 
         """REMOVE"""
+        with open(related_midi_file_names[i][j][:-4] + ".txt", "w") as original_file:
+            original_file.write(str(mid))
         path_merged_midi = os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j])
         mid.save(path_merged_midi)
         fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
@@ -374,9 +378,11 @@ for i in range(len(related_midi_file_names)):
             mid_merged = MidiFile(ticks_per_beat = ticks_per_beat_reference)
 
         for k in range(len(mid.tracks)):
-            first_tempo_found = False
+            cumulative_time = 0
             for l in range(len(mid.tracks[k])):
                 message_string = str(mid.tracks[k][l])
+                time = int(re.findall(r"time=(\d+)", message_string)[0])
+                cumulative_time += time
                 #The first timestamp (in ticks) of the file "related_midi_file_names[i][j]"
                 #will be stored in the "first_time" variable until the "cap" variable
                 #(expressed in microseconds) can be converted to ticks once the "reference_tempo"
@@ -386,82 +392,92 @@ for i in range(len(related_midi_file_names)):
                 #tick-converted cap.
                 if ((cap and j == 0 and related_midi_file_names[i][j][0] != "0" or j > 0) and
                 k == 0 and l == 0 and "time=" in message_string):
-                    first_time = int(re.findall(r"time=(\d+)", message_string)[0])
+                    first_time = time
 
                 if "set_tempo" in message_string:
                     track_tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
+
                     print("\n\ntrack_tempo: ", track_tempo)
-                    different_track_tempos.append([k, l, track_tempo])
-                    if j == 0 and k == 0:
+
+                    if tempo_reference == None and j == 0 and k == 0:
                         tempo_reference = track_tempo
-                        print("\n\ntempo_reference, different_track_tempos: ", tempo_reference, different_track_tempos)
-                    #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
-                    #instance is kept, and the subsequent ones are changed for the following text:
-                    if first_tempo_found:
-                        mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
-                        str(track_tempo)))
-                    elif (tempo_reference and len(different_track_tempos) > 1 and
-                    tempo_reference != different_track_tempos[-1][2]):
-                        message_string = re.sub(r"(tempo=\d+)", "tempo=" +
-                        str(tempo_reference), message_string)
-                        print("\n\nTEMPO SUBSTITUTED: ", message_string)
-                        mid.tracks[k][l] = eval("mido." + message_string)
-                        first_tempo_found = True
+                        different_track_tempos.append([cumulative_time, track_tempo, ticks_per_beat_correction_ratio])
                     else:
-                        first_tempo_found = True
-                    if (tempo_reference and len(different_track_tempos) > 1 and
-                    tempo_reference != different_track_tempos[-1][2]):
-                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
-                    elif (tempo_reference and len(different_track_tempos) > 1 and
-                    tempo_reference == different_track_tempos[-1][2]):
-                        tick_adjustment_ratio = ticks_per_beat_correction_ratio
+                        different_track_tempos.append([cumulative_time, track_tempo, track_tempo/tempo_reference*ticks_per_beat_correction_ratio])
+                        print("\n\ntempo_reference, different_track_tempos: ", tempo_reference, different_track_tempos)
                     #Now that the "reference_tempo" has been set, the value of "cap"
                     #can be converted from microseconds into ticks and then compared
                     #to the first tick value of the first track.
-                    if first_time:
+                    if cap and first_time and tempo_reference:
                         #time (microseconds) / tempo (microseconds/beat) * ticks_per_beat (ticks/beat)
                         cap_ticks = cap / tempo_reference * ticks_per_beat_reference
                         if cap_ticks < first_time:
                             cap_found_time_value = first_time
 
                 if r"note_" in message_string:
-                    time = int(re.findall(r"time=(\d+)", message_string)[0])
-                    message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time*tick_adjustment_ratio)), message_string)
                     velocity = int(re.findall(r"velocity=(\d+)", message_string)[0])
                     current_maximum_velocity = max([velocity, current_maximum_velocity])
                     if j == 0:
                         reference_maximum_velocity = max([velocity, reference_maximum_velocity])
-                    note_on_off = re.findall(r"(note_\w+)", message_string)[0]
-                    message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
-                    mid.tracks[k][l] = eval("Message(" + message_string + ")")
-                    if tick_adjustment_ratio != 1:
-                        midi_file_altered = True
+
                 if k == len(mid.tracks)-1 and l == len(mid.tracks[k])-1 and r"end_of_track" in message_string:
-                    time = int(re.findall(r"time=(\d+)", message_string)[0])
                     if time != 0:
                         message_string = re.sub(r"(time=\d+)", "time=0", message_string)
                         mid.tracks[k][l] = eval("mido." + message_string)
 
 
         velocity_modifyer = reference_maximum_velocity/current_maximum_velocity
-        if velocity_modifyer != 1 or cap_found_time_value:
-            print("\n\nrelated_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer: ", related_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer)
-            for k in range(len(mid.tracks)):
-                for l in range(len(mid.tracks[k])):
-                    message_string = str(mid.tracks[k][l])
-                    if velocity_modifyer != 1 and r"note_" in message_string:
+        different_track_tempos.sort()
+        print("\n\nsorted different_track_tempos: ", different_track_tempos)
+        print("\n\nrelated_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer: ", related_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer)
+        index_different_track_tempos = 0
+        for k in range(len(mid.tracks)):
+            first_tempo_found = False
+            cumulative_time = 0
+
+            for l in range(len(mid.tracks[k])):
+                note_changed = False
+                message_string = str(mid.tracks[k][l])
+                time = int(re.findall(r"time=(\d+)", message_string)[0])
+                cumulative_time += time
+                if (index_different_track_tempos < len(different_track_tempos)-1 and
+                cumulative_time >= different_track_tempos[index_different_track_tempos+1][0]):
+                    index_different_track_tempos += 1
+                if r"note_" in message_string:
+                    if current_maximum_velocity != 0 and velocity_modifyer != 1:
                         velocity = int(re.findall(r"velocity=(\d+)", message_string)[0])
                         message_string = re.sub(r"(velocity=\d+)",  "velocity=" + str(math.floor(velocity*velocity_modifyer)), message_string)
+                        note_changed = True
+                        midi_file_altered = True
+                    if cumulative_time >= different_track_tempos[index_different_track_tempos][0] and int(different_track_tempos[index_different_track_tempos][2]) != 1:
+                        message_string = re.sub(r"(time=\d+)", "time=" + str(math.floor(time*different_track_tempos[index_different_track_tempos][2])), message_string)
+                        note_changed = True
+                        midi_file_altered = True
+                    if note_changed == True:
                         note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                         message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                         mid.tracks[k][l] = eval("Message(" + message_string + ")")
+                if r"tempo" in message_string:
+                    #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
+                    #instance is kept, and the subsequent ones are changed for the following text:
+                    if first_tempo_found:
+                        mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
+                        str(different_track_tempos[index_different_track_tempos][1])))
+                    elif (tempo_reference and cumulative_time >= different_track_tempos[index_different_track_tempos][0] and 
+                    int(different_track_tempos[index_different_track_tempos][2]) != 1):
+                        message_string = re.sub(r"(tempo=\d+)", "tempo=" +
+                        str(tempo_reference), message_string)
+                        mid.tracks[k][l] = eval("mido." + message_string)
+                        first_tempo_found = True
+                    else:
+                        first_tempo_found = True
+
+                if l == 0 and cap_found_time_value and r"time=" in message_string:
+                    time = int(re.findall(r"time=(\d+)", message_string)[0])
+                    if time == cap_found_time_value:
+                        message_string = re.sub(r"(time=\d+)", "time=" + str(cap_ticks), message_string)
+                        mid.tracks[k][l] = eval("mido." + message_string)
                         midi_file_altered = True
-                    if l == 0 and cap_found_time_value and r"time=" in message_string:
-                        time = int(re.findall(r"time=(\d+)", message_string)[0])
-                        if time == cap_found_time_value:
-                            message_string = re.sub(r"(time=\d+)", "time=" + str(cap_ticks), message_string)
-                            mid.tracks[k][l] = eval("mido." + message_string)
-                            midi_file_altered = True
 
 
 
