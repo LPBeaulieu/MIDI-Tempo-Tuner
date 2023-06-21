@@ -380,37 +380,39 @@ for i in range(len(related_midi_file_names)):
 
                 if "set_tempo" in message_string:
                     track_tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
+                    print("\n\ntrack_tempo: ", track_tempo)
                     different_track_tempos.append([k, l, track_tempo])
                     if j == 0 and k == 0:
                         tempo_reference = track_tempo
-                        #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
-                        #instance is kept, and the subsequent ones are changed for the following text:
-                        if first_tempo_found:
-                            mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
-                            str(track_tempo)))
-                        elif (tempo_reference and len(different_track_tempos) > 1 and
-                        tempo_reference != different_track_tempos[-1][2]):
-                            message_string = re.sub(r"(tempo=\d+)", "tempo=" +
-                            str(tempo_reference), message_string)
-                            print("\n\nTEMPO SUBSTITUTED: ", message_string)
-                            mid.tracks[k][l] = eval("mido." + message_string)
-                            first_tempo_found = True
-                        else:
-                            first_tempo_found = True
-                        if (tempo_reference and len(different_track_tempos) > 1 and
-                        tempo_reference != different_track_tempos[-1][2]):
-                            tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
-                        elif (tempo_reference and len(different_track_tempos) > 1 and
-                        tempo_reference == different_track_tempos[-1][2]):
-                            tick_adjustment_ratio = ticks_per_beat_correction_ratio
-                        #Now that the "reference_tempo" has been set, the value of "cap"
-                        #can be converted from microseconds into ticks and then compared
-                        #to the first tick value of the first track.
-                        if first_time:
-                            #time (microseconds) / tempo (microseconds/beat) * ticks_per_beat (ticks/beat)
-                            cap_ticks = cap / tempo_reference * ticks_per_beat_reference
-                            if cap_ticks < first_time:
-                                cap_found_time_value = first_time
+                        print("\n\ntempo_reference, different_track_tempos: ", tempo_reference, different_track_tempos)
+                    #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
+                    #instance is kept, and the subsequent ones are changed for the following text:
+                    if first_tempo_found:
+                        mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
+                        str(track_tempo)))
+                    elif (tempo_reference and len(different_track_tempos) > 1 and
+                    tempo_reference != different_track_tempos[-1][2]):
+                        message_string = re.sub(r"(tempo=\d+)", "tempo=" +
+                        str(tempo_reference), message_string)
+                        print("\n\nTEMPO SUBSTITUTED: ", message_string)
+                        mid.tracks[k][l] = eval("mido." + message_string)
+                        first_tempo_found = True
+                    else:
+                        first_tempo_found = True
+                    if (tempo_reference and len(different_track_tempos) > 1 and
+                    tempo_reference != different_track_tempos[-1][2]):
+                        tick_adjustment_ratio = different_track_tempos[-1][2]/tempo_reference*ticks_per_beat_correction_ratio
+                    elif (tempo_reference and len(different_track_tempos) > 1 and
+                    tempo_reference == different_track_tempos[-1][2]):
+                        tick_adjustment_ratio = ticks_per_beat_correction_ratio
+                    #Now that the "reference_tempo" has been set, the value of "cap"
+                    #can be converted from microseconds into ticks and then compared
+                    #to the first tick value of the first track.
+                    if first_time:
+                        #time (microseconds) / tempo (microseconds/beat) * ticks_per_beat (ticks/beat)
+                        cap_ticks = cap / tempo_reference * ticks_per_beat_reference
+                        if cap_ticks < first_time:
+                            cap_found_time_value = first_time
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
