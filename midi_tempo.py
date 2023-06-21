@@ -1,8 +1,6 @@
 ## TODO:
 #1- test with unmatched files
 
-#1- Cap the start of each MIDI file at a certain number of microseconds to avoid awkward silences
-
 
 import math
 import mido
@@ -343,6 +341,18 @@ for i in range(len(related_midi_file_names)):
             fs = FluidSynth(sf2_files[0])
 
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
+
+        """REMOVE"""
+        path_merged_midi = os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j])
+        mid.save(path_merged_midi)
+        fs.midi_to_audio(path_merged_midi, path_merged_midi[:-4] + '.wav')
+        song_audiosegment = AudioSegment.from_wav(path_merged_midi[:-4] + '.wav')
+        if target_dBFS:
+            delta_dBFS = target_dBFS - song_audiosegment.dBFS
+            song_audiosegment = song_audiosegment.apply_gain(delta_dBFS)
+        song_audiosegment.export(path_merged_midi[:-4] + '.mp3', format="mp3", bitrate="320k")
+        os.remove(path_merged_midi[:-4] + '.wav')
+
         cap_found_time_value = None
         first_time = None
         midi_file_altered = False
@@ -426,7 +436,7 @@ for i in range(len(related_midi_file_names)):
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
                     if tick_adjustment_ratio != 1:
                         midi_file_altered = True
-                if k == len(mid.tracks) and l == len(mid.tracks[k]) and r"end_of_track" in message_string:
+                if k == len(mid.tracks)-1 and l == len(mid.tracks[k])-1 and r"end_of_track" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
                     if time != 0:
                         message_string = re.sub(r"(time=\d+)", "time=0", message_string)
@@ -563,7 +573,7 @@ for i in range(len(related_midi_file_names)):
                     print("\n\nmid.tracks[j][k]: ", mid.tracks[j][k])
         return mid
 
-    if os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
+    if merge_midi and os.path.exists(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name)):
         mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", MIDI_file_name))
     elif midi_file_altered:
         mid = MidiFile(os.path.join(cwd, "MIDI Files OUT", new_file_name))
