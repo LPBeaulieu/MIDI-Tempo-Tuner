@@ -2,7 +2,6 @@
 #1- test with unmatched files
 
 #1- Cap the start of each MIDI file at a certain number of microseconds to avoid awkward silences
-#2- Adjust velocity
 
 
 import math
@@ -47,6 +46,10 @@ if len(sys.argv) > 1:
                 tempo_split = [element for element in sys.argv[i].strip().split(":") if element != ""]
                 if len(tempo_split) > 1:
                     tempo_adjustment = int(tempo_split[1].strip())
+            elif sys.argv[i][:3].strip().lower() == "cap":
+                cap_split = [element for element in sys.argv[i].strip().split(":") if element != ""]
+                if len(cap_split) > 1:
+                    cap = int(cap_split[1].strip())*1000
     except:
         pass
 
@@ -163,12 +166,12 @@ if not os.path.exists(os.path.join(cwd, "MIDI Files OUT")):
 
 tempo_substitution_done = False
 tempo = None
+cap = None
 
 
 
-related_midi_file_names = ([[re.sub(r"\A(\d+.\d+-)", "", midi_file_names[i]),
-re.sub(r"\A(\d+-)|\A(\d+.\d+-\d+-)|\A(\d+.\d+-)", "", midi_file_names[i]),
-midi_file_names[i]] for i in range(len(midi_file_names))])
+related_midi_file_names = ([[midi_file_names[i],
+re.sub(r"\A(\d+-)", "", midi_file_names[i])] for i in range(len(midi_file_names))])
 print("\n\n1-related_midi_file_names: ", related_midi_file_names)
 related_midi_file_names.sort()
 print("\n\n2-related_midi_file_names: ", related_midi_file_names)
@@ -182,7 +185,7 @@ if first_files:
     for i in range(len(first_files)):
         new_related_midi_file_names.append([])
         for j in range(starting_index, len(related_midi_file_names), len(first_files)):
-            new_related_midi_file_names[-1].append(related_midi_file_names[j][2])
+            new_related_midi_file_names[-1].append(related_midi_file_names[j][0])
         starting_index += 1
     related_midi_file_names = new_related_midi_file_names
 else:
@@ -193,7 +196,7 @@ else:
         'be using to automatically adjust the tempo of the merged file, prefix its file name with ' +
         'a zero and a hyphen ("0-Identical_file_name").')
 
-    related_midi_file_names = [[file[2]] for file in related_midi_file_names]
+    related_midi_file_names = [[file[0]] for file in related_midi_file_names]
 
 print("\n\n3-related_midi_file_names: ", related_midi_file_names)
 
@@ -203,16 +206,15 @@ for i in range(len(related_midi_file_names)):
     ticks_per_beat_current_file = None
     ticks_per_beat_reference = None
     tempo_reference = None
+    reference_maximum_velocity = None
     cumulative_ticks = 0
     merge_midi = False
 
-    file_name = re.sub(r"\A(\d+-)|\A(\d+.\d+-\d+-)|\A(\d+.\d+-)", "", related_midi_file_names[i][0])
-    for j in range(len(related_midi_file_names[i])):
-        velocity_modifyer = re.findall(r"\A(\d+.\d+-)", related_midi_file_names[i][j])
-        if velocity_modifyer:
-            related_midi_file_names[i][j] = re.sub(velocity_modifyer[0], "", related_midi_file_names[i][j])
-            velocity_modifyer = float(velocity_modifyer[0][:-1])
 
+    file_name = re.sub(r"\A(\d+-)", "", related_midi_file_names[i][0])
+    reference_maximum_velocity = 0
+    for j in range(len(related_midi_file_names[i])):
+        current_maximum_velocity = 0
         #The variable "old_target_dBFS", initialized to "None" for
         #every new song in "song_list", will store the initial
         #value of "target_dBFS" before giving precedence to any
@@ -240,12 +242,12 @@ for i in range(len(related_midi_file_names)):
             #positive, it is stored in "soundfont_number", as any other values returned
             #by the function would be negative and correspond to the updated value of
             #"target_dBFS" for this audio track.
-            for j in range(len(dBFStarget_soundfont)):
-                if dBFStarget_soundfont[j] >= 0:
-                    soundfont_number = dBFStarget_soundfont[j]
-                elif dBFStarget_soundfont[j] < 0:
+            for k in range(len(dBFStarget_soundfont)):
+                if dBFStarget_soundfont[k] >= 0:
+                    soundfont_number = dBFStarget_soundfont[k]
+                elif dBFStarget_soundfont[k] < 0:
                     old_target_dBFS = target_dBFS
-                    target_dBFS = dBFStarget_soundfont[j]
+                    target_dBFS = dBFStarget_soundfont[k]
             #Should the audio track be a MIDI file and the "soundfont_number"
             #not be assigned, given that the MIDI file did not end in a parenthesized
             #positive number (ex: "midi_file_name(-25).mid"), and since there has to
@@ -260,9 +262,9 @@ for i in range(len(related_midi_file_names)):
             #SoundFont was selected. Otherwise, you would need to add the SoundFont
             #information at the end of your MIDI file name (ex: "midi_file_name(1 -25).mid").
             if soundfont_number == None:
-                for j in range(len(list_soundfonts_dBFStarget[0])):
-                    if isinstance(list_soundfonts_dBFStarget[0][j], int)  and  list_soundfonts_dBFStarget[0][j] >= 0:
-                        soundfont_number = list_soundfonts_dBFStarget[0][j]
+                for k in range(len(list_soundfonts_dBFStarget[0])):
+                    if isinstance(list_soundfonts_dBFStarget[0][k], int)  and  list_soundfonts_dBFStarget[0][k] >= 0:
+                        soundfont_number = list_soundfonts_dBFStarget[0][k]
                         break
         #The following "for" loop will extract the parenthesized "soundfont_number"
         #and "target_dBFS" values found at the end of the SoundFont "sf2" file names that
@@ -279,7 +281,7 @@ for i in range(len(related_midi_file_names)):
         #(the latter case being if the "sf2" didn't contain any parenthesized information,
         #ex: "Piano.sf2").
         fs = None
-        for j in range(len(list_soundfonts_dBFStarget)):
+        for k in range(len(list_soundfonts_dBFStarget)):
             #Should the element of "list_soundfonts_dBFStarget" under
             #investigation have a length of three or more, it means that
             #it contains in sequence values of "soundfont_number", "target_dBFS"
@@ -290,12 +292,12 @@ for i in range(len(related_midi_file_names)):
             #that the MIDI file didn't contain a parenthesized "target_dBFS"
             #value that would otherwise take precedence over any "target_dBFS"
             #specified in the "sf2" file name.
-            if len(list_soundfonts_dBFStarget[j]) > 2:
-                if soundfont_number == list_soundfonts_dBFStarget[j][0]:
-                    fs = FluidSynth(list_soundfonts_dBFStarget[j][2])
+            if len(list_soundfonts_dBFStarget[k]) > 2:
+                if soundfont_number == list_soundfonts_dBFStarget[k][0]:
+                    fs = FluidSynth(list_soundfonts_dBFStarget[k][2])
                     if old_target_dBFS == None:
                         old_target_dBFS = target_dBFS
-                        target_dBFS = list_soundfonts_dBFStarget[j][1]
+                        target_dBFS = list_soundfonts_dBFStarget[k][1]
                     break
             #Should the current element of "list_soundfonts_dBFStarget"
             #under investigation have a length of two, it means that it
@@ -305,10 +307,10 @@ for i in range(len(related_midi_file_names)):
             #these possibilities, with the "soundfont_number" being checked
             #first in case a matching "soundfont_number" to that of the
             #current MIDI file can be found.
-            elif len(list_soundfonts_dBFStarget[j]) == 2:
-                if (list_soundfonts_dBFStarget[j][0] >= 0 and
-                soundfont_number == list_soundfonts_dBFStarget[j][0]):
-                    fs = FluidSynth(list_soundfonts_dBFStarget[j][1])
+            elif len(list_soundfonts_dBFStarget[k]) == 2:
+                if (list_soundfonts_dBFStarget[k][0] >= 0 and
+                soundfont_number == list_soundfonts_dBFStarget[k][0]):
+                    fs = FluidSynth(list_soundfonts_dBFStarget[k][1])
                     break
                 #The "elif" statement only applies should there only be
                 #one SoundFont file within the working folder and the
@@ -320,11 +322,11 @@ for i in range(len(related_midi_file_names)):
                 #precedence to the "target_dBFS" found in the MIDI
                 #file name, as mentioned above.
                 elif (len_sf2_files == 1 and
-                list_soundfonts_dBFStarget[j][0] < 0):
-                     fs = FluidSynth(list_soundfonts_dBFStarget[j][1])
+                list_soundfonts_dBFStarget[k][0] < 0):
+                     fs = FluidSynth(list_soundfonts_dBFStarget[k][1])
                      if old_target_dBFS == None:
                          old_target_dBFS = target_dBFS
-                         target_dBFS = list_soundfonts_dBFStarget[j][0]
+                         target_dBFS = list_soundfonts_dBFStarget[k][0]
         #As there is at least one SoundFont file within the working
         #folder at this point in the code, should a "FluidSynth" object
         #not yet have been instantiated, it is instantiated now using the
@@ -341,7 +343,8 @@ for i in range(len(related_midi_file_names)):
             fs = FluidSynth(sf2_files[0])
 
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][j]))
-
+        cap_found_time_value = None
+        first_time = None
         midi_file_altered = False
         if j == 0:
             ticks_per_beat_reference = mid.ticks_per_beat
@@ -363,24 +366,33 @@ for i in range(len(related_midi_file_names)):
         for k in range(len(mid.tracks)):
             first_tempo_found = False
             for l in range(len(mid.tracks[k])):
-                tempo_hits = []
                 message_string = str(mid.tracks[k][l])
+                #The first timestamp (in ticks) of the file "related_midi_file_names[i][j]"
+                #will be stored in the "first_time" variable until the "cap" variable
+                #(expressed in microseconds) can be converted to ticks once the "reference_tempo"
+                #value has been determined. Ultimately, should the tick-converted cap value be
+                #smaller than "first_time", then the first time stamps in every track which
+                #correspond to the value of "first_time" would be changed to that of the
+                #tick-converted cap.
+                if ((cap and j == 0 and related_midi_file_names[i][j][0] != "0" or j > 0) and
+                k == 0 and l == 0 and "time=" in message_string):
+                    first_time = int(re.findall(r"time=(\d+)", message_string)[0])
+
                 if "set_tempo" in message_string:
-                    tempo_hits = re.findall(r"tempo=(\d+),", message_string)
-                    if tempo_hits != []:
-                        tempo_hits = [int(tempo) for tempo in tempo_hits]
-                        different_track_tempos.append([k, l, tempo_hits[0]])
-                        if j == 0 and k == 0:
-                            tempo_reference = tempo_hits[0]
+                    track_tempo = int(re.findall(r"tempo=(\d+),", message_string)[0])
+                    different_track_tempos.append([k, l, track_tempo])
+                    if j == 0 and k == 0:
+                        tempo_reference = track_tempo
                         #For each new track within a MIDI file, only the first "set_tempo" MetaMessage
                         #instance is kept, and the subsequent ones are changed for the following text:
                         if first_tempo_found:
                             mid.tracks[k][l] = (MetaMessage("text", text='Previous "tempo value: "' +
-                            str(tempo_hits[0])))
+                            str(track_tempo)))
                         elif (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference != different_track_tempos[-1][2]):
                             message_string = re.sub(r"(tempo=\d+)", "tempo=" +
                             str(tempo_reference), message_string)
+                            print("\n\nTEMPO SUBSTITUTED: ", message_string)
                             mid.tracks[k][l] = eval("mido." + message_string)
                             first_tempo_found = True
                         else:
@@ -391,17 +403,54 @@ for i in range(len(related_midi_file_names)):
                         elif (tempo_reference and len(different_track_tempos) > 1 and
                         tempo_reference == different_track_tempos[-1][2]):
                             tick_adjustment_ratio = ticks_per_beat_correction_ratio
+                        #Now that the "reference_tempo" has been set, the value of "cap"
+                        #can be converted from microseconds into ticks and then compared
+                        #to the first tick value of the first track.
+                        if first_time:
+                            #time (microseconds) / tempo (microseconds/beat) * ticks_per_beat (ticks/beat)
+                            cap_ticks = cap / tempo_reference * ticks_per_beat_reference
+                            if cap_ticks < first_time:
+                                cap_found_time_value = first_time
 
                 if r"note_" in message_string:
                     time = int(re.findall(r"time=(\d+)", message_string)[0])
                     message_string = re.sub(r"(time=\d+)",  "time=" + str(math.floor(time*tick_adjustment_ratio)), message_string)
-                    if velocity_modifyer != []:
-                        velocity = int(re.findall(r"velocity=(\d+)", message_string)[0])
-                        message_string = re.sub(r"(velocity=\d+)",  "velocity=" + str(math.floor(velocity*velocity_modifyer)), message_string)
+                    velocity = int(re.findall(r"velocity=(\d+)", message_string)[0])
+                    current_maximum_velocity = max([velocity, current_maximum_velocity])
+                    if j == 0:
+                        reference_maximum_velocity = max([velocity, reference_maximum_velocity])
                     note_on_off = re.findall(r"(note_\w+)", message_string)[0]
                     message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
                     mid.tracks[k][l] = eval("Message(" + message_string + ")")
-                    midi_file_altered = True
+                    if tick_adjustment_ratio != 1:
+                        midi_file_altered = True
+                if k == len(mid.tracks) and l == len(mid.tracks[k]) and r"end_of_track" in message_string:
+                    time = int(re.findall(r"time=(\d+)", message_string)[0])
+                    if time != 0:
+                        message_string = re.sub(r"(time=\d+)", "time=0", message_string)
+                        mid.tracks[k][l] = eval("mido." + message_string)
+
+
+        velocity_modifyer = reference_maximum_velocity/current_maximum_velocity
+        if velocity_modifyer != 1 or cap_found_time_value:
+            print("\n\nrelated_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer: ", related_midi_file_names[i][j], current_maximum_velocity, reference_maximum_velocity, velocity_modifyer)
+            for k in range(len(mid.tracks)):
+                for l in range(len(mid.tracks[k])):
+                    message_string = str(mid.tracks[k][l])
+                    if velocity_modifyer != 1 and r"note_" in message_string:
+                        velocity = int(re.findall(r"velocity=(\d+)", message_string)[0])
+                        message_string = re.sub(r"(velocity=\d+)",  "velocity=" + str(math.floor(velocity*velocity_modifyer)), message_string)
+                        note_on_off = re.findall(r"(note_\w+)", message_string)[0]
+                        message_string = ", ".join(re.sub(note_on_off, "'" + note_on_off + "'", message_string).split(" "))
+                        mid.tracks[k][l] = eval("Message(" + message_string + ")")
+                        midi_file_altered = True
+                    if l == 0 and cap_found_time_value and r"time=" in message_string:
+                        time = int(re.findall(r"time=(\d+)", message_string)[0])
+                        if time == cap_found_time_value:
+                            message_string = re.sub(r"(time=\d+)", "time=" + str(cap_ticks), message_string)
+                            mid.tracks[k][l] = eval("mido." + message_string)
+                            midi_file_altered = True
+
 
 
         if (j == 0 and merge_midi == True and related_midi_file_names[i][0][0] != "0" or
@@ -520,14 +569,13 @@ for i in range(len(related_midi_file_names)):
         mid = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][1]))
 
     if tempo_adjustment:
-        if tempo_adjustment < 5000:
-            def find_notated_32nd_notes_per_beat(mid):
-                notated_32nd_notes_per_beat = 8
-                for j in range(len(mid.tracks)):
-                    for k in range(len(mid.tracks[j])):
-                        message_string = str(mid.tracks[j][k])
-                        if "notated_32nd_notes_per_beat=" in message_string:
-                            return int(re.findall(r"notated_32nd_notes_per_beat=(\d+),", message_string)[0])
+        def find_notated_32nd_notes_per_beat(mid):
+            notated_32nd_notes_per_beat = 8
+            for j in range(len(mid.tracks)):
+                for k in range(len(mid.tracks[j])):
+                    message_string = str(mid.tracks[j][k])
+                    if "notated_32nd_notes_per_beat=" in message_string:
+                        return int(re.findall(r"notated_32nd_notes_per_beat=(\d+),", message_string)[0])
 
             notated_32nd_notes_per_beat = find_notated_32nd_notes_per_beat(mid)
             #microseconds/quarter-note = minute/beat * (32/notated_32nd_notes_per_beat)/4 * 60 seconds/minute * 1000000 us/second
@@ -551,6 +599,7 @@ for i in range(len(related_midi_file_names)):
         print("\n\nnote_duration: ", note_duration)
 
         mid_reference = MidiFile(os.path.join(cwd, "MIDI Files IN", related_midi_file_names[i][0]))
+        print("\n\nrelated_midi_file_names[i][0]: ", related_midi_file_names[i][0])
         note_duration_reference, note_reference, tempo_reference = find_first_note_and_tempo(mid_reference, note)
 
         print("\n\nnote_duration_reference: ", note_duration_reference)
